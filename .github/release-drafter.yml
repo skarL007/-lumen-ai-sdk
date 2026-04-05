@@ -7,6 +7,10 @@ categories:
     labels: ['fix', 'bugfix']
   - title: 'Docs'
     labels: ['documentation']
+template: |
+  ## What's Changed
+
+  $CHANGES
 change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
 version-resolver:
   major:
