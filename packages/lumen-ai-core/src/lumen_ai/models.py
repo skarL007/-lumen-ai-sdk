@@ -13,13 +13,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 
-# Decouple from specific app: try app.infra.db first, fallback to standalone Base
-try:
-    from app.infra.db import Base
-except ImportError:
-    from sqlalchemy.orm import DeclarativeBase
-    class Base(DeclarativeBase):
-        pass
+from sqlalchemy.orm import DeclarativeBase
+
+
+class Base(DeclarativeBase):
+    pass
 
 
 def _uuid() -> str:

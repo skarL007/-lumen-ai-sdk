@@ -24,10 +24,10 @@ jobs:
       - name: Verify import
         run: python -c "from lumen_ai import LumenAI, BaseInstrumentor; print('Import OK')"
 
-      - name: Run smoke tests
+      - name: Run tests
         run: |
           pip install pytest
-          pytest tests/test_smoke.py -v
+          pytest tests/ -v
 
       - name: Install all packages
         run: |

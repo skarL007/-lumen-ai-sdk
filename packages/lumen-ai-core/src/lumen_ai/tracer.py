@@ -30,6 +30,7 @@ def create_tracer_provider(
     pricing_provider: Optional[BasePricingProvider] = None,
     exporter: Optional[BaseLumenAIExporter] = None,
     enable_otlp: bool = True,
+    otlp_insecure: bool = True,
 ) -> TracerProvider:
     """
     Create a TracerProvider with the LumenAI processor chain.
@@ -47,6 +48,8 @@ def create_tracer_provider(
         enable_otlp:       Forward raw spans to an OTLP collector.
                            Silently skipped if the exporter package is
                            not installed.
+        otlp_insecure:     Use insecure (plaintext) gRPC for OTLP.
+                           Set to False for TLS in production.
 
     Returns:
         Configured TracerProvider — set as global via
@@ -78,7 +81,7 @@ def create_tracer_provider(
                 or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
             )
             provider.add_span_processor(
-                BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=True))
+                BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=otlp_insecure))
             )
             logger.info("LumenAI OTLP exporter → %s", endpoint)
         except ImportError:

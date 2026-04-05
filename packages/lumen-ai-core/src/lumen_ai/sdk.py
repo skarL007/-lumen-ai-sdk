@@ -49,6 +49,7 @@ class LumenAI:
         redis_url: Optional[str] = None,
         default_tenant: str = "default",
         enable_otlp: bool = False,
+        otlp_insecure: bool = True,
         pricing_provider: Optional[BasePricingProvider] = None,
         exporter: Optional[BaseLumenAIExporter] = None,
         instrumentors: Optional[List] = None,
@@ -62,6 +63,8 @@ class LumenAI:
             redis_url:         Shortcut — creates a RedisExporter automatically.
             default_tenant:    Fallback tenant_id for spans with no context set.
             enable_otlp:       Forward spans to OTLP collector (default: False).
+            otlp_insecure:     Use insecure (plaintext) gRPC for OTLP.
+                               Set to False for TLS in production.
             pricing_provider:  Custom pricing source. Defaults to built-in table.
             exporter:          Custom event sink. Defaults to RedisExporter when
                                redis_url is supplied.
@@ -91,6 +94,7 @@ class LumenAI:
             pricing_provider=pricing_provider,
             exporter=exporter,
             enable_otlp=enable_otlp,
+            otlp_insecure=otlp_insecure,
         )
         trace.set_tracer_provider(cls._provider)
 

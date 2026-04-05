@@ -17,7 +17,8 @@ The repository is a Python monorepo with three packages and a shared test suite:
 │   ├── lumen-ai-celery/     ← Optional Celery integration
 │   └── lumen-ai-openlit/    ← Optional OpenLIT bridge
 └── tests/
-    └── test_smoke.py        ← 13 smoke tests, run on every push
+    ├── test_smoke.py        ← 13 smoke tests (imports, processors, pricing)
+    └── test_processors.py   ← 9 unit tests (ContextVar, cost math, pricing table)
 ```
 
 **Start with `lumen-ai-core`.** Everything else builds on it. The most important files are:
@@ -50,11 +51,11 @@ pip install -e packages/lumen-ai-openlit
 # 4. Install test dependencies
 pip install pytest
 
-# 5. Run the smoke tests to verify your setup
-pytest tests/test_smoke.py -v
+# 5. Run all tests to verify your setup
+pytest tests/ -v
 ```
 
-All 13 tests should pass. If any fail on a clean clone, please [open an issue](https://github.com/skarL007/-lumen-ai-sdk/issues).
+All 22 tests should pass. If any fail on a clean clone, please [open an issue](https://github.com/skarL007/-lumen-ai-sdk/issues).
 
 ---
 
@@ -387,7 +388,7 @@ chore: update opentelemetry-sdk dependency to >=1.31.0
 
 Before opening a pull request, verify the following:
 
-- [ ] All 13 smoke tests pass: `pytest tests/test_smoke.py -v`
+- [ ] All 22 tests pass: `pytest tests/ -v`
 - [ ] New code follows the patterns in the file it modifies (side-dicts, exception handling, logging style)
 - [ ] `export()` and `get_pricing()` implementations never raise exceptions to the caller
 - [ ] No hardcoded model names — use `PRICING_TABLE` keys or the `semconv.py` constants
@@ -402,21 +403,21 @@ Before opening a pull request, verify the following:
 ## Running Tests
 
 ```bash
-# Run all smoke tests
-pytest tests/test_smoke.py -v
+# Run all tests
+pytest tests/ -v
 
 # Run a specific test by name
-pytest tests/test_smoke.py -v -k "test_tenant_processor_isolation"
+pytest tests/ -v -k "test_tenant_processor_isolation"
 
 # Run with output (useful when debugging)
-pytest tests/test_smoke.py -v -s
+pytest tests/ -v -s
 
 # Check test coverage (requires pytest-cov)
 pip install pytest-cov
-pytest tests/test_smoke.py --cov=lumen_ai --cov-report=term-missing
+pytest tests/ --cov=lumen_ai --cov-report=term-missing
 ```
 
-The test suite uses `unittest.mock.MagicMock` to create minimal OTel span objects — no real OTel collector, Redis instance, or LLM provider is needed to run the tests. All 13 tests run in under 1 second.
+The test suite uses `unittest.mock.MagicMock` to create minimal OTel span objects — no real OTel collector, Redis instance, or LLM provider is needed to run the tests. All 22 tests run in under 1 second.
 
 ---
 

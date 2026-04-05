@@ -10,8 +10,8 @@ import time
 from opentelemetry import trace
 from opentelemetry.trace import StatusCode
 
-from LumenAI.sdk import BaseInstrumentor
-from LumenAI.schema.semconv import (
+from lumen_ai import BaseInstrumentor
+from lumen_ai.schema.semconv import (
     GenAIAttributes,
     OpenInferenceAttributes,
     LumenAIAttributes,

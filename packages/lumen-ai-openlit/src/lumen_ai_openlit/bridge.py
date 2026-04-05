@@ -10,7 +10,7 @@ Usage:
 """
 import logging
 
-from LumenAI.sdk import BaseInstrumentor
+from lumen_ai import BaseInstrumentor
 
 logger = logging.getLogger(__name__)
 

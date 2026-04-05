@@ -10,8 +10,10 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-1.30%2B-purple?style=flat-square&logo=opentelemetry&logoColor=white)](https://opentelemetry.io/)
-[![CI: Passing](https://img.shields.io/badge/CI-passing-brightgreen?style=flat-square&logo=github-actions&logoColor=white)](https://github.com/skarL007/-lumen-ai-sdk/actions)
-[![PyPI](https://img.shields.io/pypi/v/lumen-ai-core?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/lumen-ai-core/)
+[![CI](https://github.com/skarL007/-lumen-ai-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/skarL007/-lumen-ai-sdk/actions/workflows/ci.yml)
+[![lumen-ai-core](https://img.shields.io/pypi/v/lumen-ai-core?style=flat-square&logo=pypi&logoColor=white&label=core)](https://pypi.org/project/lumen-ai-core/)
+[![lumen-ai-celery](https://img.shields.io/pypi/v/lumen-ai-celery?style=flat-square&logo=pypi&logoColor=white&label=celery)](https://pypi.org/project/lumen-ai-celery/)
+[![lumen-ai-openlit](https://img.shields.io/pypi/v/lumen-ai-openlit?style=flat-square&logo=pypi&logoColor=white&label=openlit)](https://pypi.org/project/lumen-ai-openlit/)
 [![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-ff69b4?style=flat-square&logo=github-sponsors&logoColor=white)](https://github.com/sponsors/skarL007)
 [![Stars](https://img.shields.io/github/stars/skarL007/-lumen-ai-sdk?style=flat-square&logo=github)](https://github.com/skarL007/-lumen-ai-sdk/stargazers)
 
@@ -854,9 +856,15 @@ async def live_cost_stream(tenant_id: str):
 │           ├── __init__.py
 │           └── bridge.py                # OpenLITBridge (60+ LLM provider auto-instr)
 │
+├── .github/
+│   └── workflows/
+│       ├── ci.yml                       # CI — runs all 22 tests on push/PR
+│       ├── publish.yml                  # Trusted Publishing to PyPI on release
+│       └── changelog.yml               # Auto-generate release notes
+│
 ├── tests/
-│   ├── test_smoke.py                    # 13 smoke tests — CI on every push
-│   └── test_processors.py              # 9 processor unit tests
+│   ├── test_smoke.py                    # 13 smoke tests (imports, processors, pricing)
+│   └── test_processors.py              # 9 unit tests (ContextVar, cost math, pricing table)
 │
 ├── examples/
 │   └── fastapi-quickstart/              # Docker + Redis + Anthropic example
@@ -875,12 +883,12 @@ async def live_cost_stream(tenant_id: str):
 ## Roadmap
 
 <details>
-<summary><strong>v0.2 — PyPI Release & DX Polish</strong></summary>
+<summary><strong>v0.2 — DX Polish & Async</strong></summary>
 
 - [x] Publish `lumen-ai-core` to PyPI via trusted publishing on GitHub Release
 - [x] Publish `lumen-ai-celery` and `lumen-ai-openlit` to PyPI
 - [x] `pip install lumen-ai-core` works without git URL
-- [ ] Add `py.typed` marker (PEP 561 — full mypy / pyright support)
+- [x] Add `py.typed` marker (PEP 561 — full mypy / pyright support)
 - [ ] Async `RedisExporter` using `redis.asyncio` (non-blocking writes)
 - [ ] `LumenAI.init()` validates configuration and raises descriptive errors on misconfiguration
 - [ ] Improve interactive demo with live cost ticker
@@ -941,7 +949,7 @@ This is the first open-source project by [skarL007](https://github.com/skarL007)
 Released under the [MIT License](LICENSE). Free to use, modify, and distribute — commercial use included. No attribution required in your product, though it is always appreciated.
 
 ```
-MIT License — Copyright (c) 2025 skarL007
+MIT License — Copyright (c) 2026 LumenAI
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

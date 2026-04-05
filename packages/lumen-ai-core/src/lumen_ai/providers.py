@@ -101,7 +101,7 @@ class RedisExporter(BaseLumenAIExporter):
                 maxlen=10000,
             )
         except Exception as e:
-            logger.debug("Redis export failed: %s", e)
+            logger.warning("Redis export failed: %s", e)
 
     def shutdown(self) -> None:
         self._redis.close()
