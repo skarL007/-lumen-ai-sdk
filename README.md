@@ -11,7 +11,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-1.30%2B-purple?style=flat-square&logo=opentelemetry&logoColor=white)](https://opentelemetry.io/)
 [![CI: Passing](https://img.shields.io/badge/CI-passing-brightgreen?style=flat-square&logo=github-actions&logoColor=white)](https://github.com/skarL007/-lumen-ai-sdk/actions)
-[![PyPI: Coming Soon](https://img.shields.io/badge/PyPI-coming%20soon-lightgrey?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/lumen-ai-core/)
+[![PyPI](https://img.shields.io/pypi/v/lumen-ai-core?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/lumen-ai-core/)
 [![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-ff69b4?style=flat-square&logo=github-sponsors&logoColor=white)](https://github.com/sponsors/skarL007)
 [![Stars](https://img.shields.io/github/stars/skarL007/-lumen-ai-sdk?style=flat-square&logo=github)](https://github.com/skarL007/-lumen-ai-sdk/stargazers)
 
@@ -63,7 +63,7 @@ No prompt logging. No PII. Pure metadata. One function call.
 | Prompt logging | No | If you want | Yes | Yes | **No — privacy by design** |
 | License | Apache | N/A | AGPL | Apache | **MIT** |
 | Self-hostable | Yes | Yes | Yes | Yes | **Yes** |
-| PyPI | N/A | N/A | Yes | Yes | **Coming v0.2** |
+| PyPI | N/A | N/A | Yes | Yes | **Yes** |
 
 ---
 
@@ -87,133 +87,183 @@ Your app code is never touched. Your prompts are never read. The entire pipeline
 
 ```mermaid
 graph LR
-    subgraph "Your App"
-        A["LLM Call
-        OpenAI / Anthropic / Ollama"] --> B[OTel Span]
+    subgraph APP["Your Application"]
+        A["LLM Call"] --> B["OTel Span"]
+        MW["Middleware"] -->|"set_tenant_id()"| CV["ContextVar"]
     end
 
-    subgraph "LumenAI Processor Chain"
-        B --> C["TenantSpanProcessor
-        Reads ContextVar
-        Stamps tenant_id"]
-        C --> D["CostComputingSpanProcessor
-        Reads gen_ai.usage.*
-        Computes USD cost"]
-        D --> E["EventNormalizerProcessor
-        Assembles canonical event
-        Calls exporter"]
+    subgraph CHAIN["LumenAI Processor Chain - sequential on span.end"]
+        B --> P1
+        P1["1 TenantSpanProcessor"]
+        P1 -->|"read ContextVar"| SD1["side-dict: tenant_map"]
+        SD1 --> P2["2 CostComputingSpanProcessor"]
+        P2 -->|"gen_ai.usage.* x PRICING_TABLE"| SD2["side-dict: cost_map"]
+        SD2 --> P3["3 EventNormalizerProcessor"]
+        P3 -->|"merge tenant + cost + span"| EV["LumenAIEvent dict"]
     end
 
-    subgraph "Export Sinks"
-        E --> F["Redis Streams
-        LumenAI:events:tenant_id"]
-        E --> G["OTLP Collector
-        optional"]
-        E --> H["Custom Exporter
-        Postgres / ClickHouse"]
+    subgraph SINKS["Export Layer"]
+        EV --> R["Redis Streams"]
+        EV --> O["OTLP Collector"]
+        EV --> C["Custom Exporter"]
     end
+
+    style SD1 fill:#1a1a2e,stroke:#e94560,color:#fff
+    style SD2 fill:#1a1a2e,stroke:#e94560,color:#fff
+    style EV fill:#0f3460,stroke:#e94560,color:#fff
 ```
 
-### Span Lifecycle Sequence
+### Span Lifecycle
 
 ```mermaid
 sequenceDiagram
-    participant MW as FastAPI Middleware
+    participant MW as Middleware
     participant CV as ContextVar
-    participant T as TenantProcessor
-    participant C as CostProcessor
-    participant N as NormalizerProcessor
+    participant SDK as OTel SDK
+    participant P1 as TenantProcessor
+    participant P2 as CostProcessor
+    participant P3 as Normalizer
     participant R as Redis Streams
 
-    MW->>CV: set_tenant_id("client-abc")
-    Note over MW,CV: on_start of span
-    CV-->>T: on_start reads tenant
-    T->>T: stamp span attribute
-    Note over T: LumenAI.tenant_id = "client-abc"
+    MW->>CV: set_tenant_id("acme")
+    MW->>SDK: start span
+    SDK->>P1: on_start(span)
+    P1->>CV: get_tenant_id()
+    CV-->>P1: "acme"
+    P1->>SDK: span.set_attribute("LumenAI.tenant_id", "acme")
 
-    Note over T,R: on_end of span
-    T->>T: store in side-dict
-    Note over T: trace:span to "client-abc"
-    C->>C: read gen_ai.usage.*
-    C->>C: compute $0.00218
-    C->>C: store in side-dict
-    N->>N: assemble LumenAIEvent
-    N->>R: export to LumenAI:events:client-abc
+    Note over MW,R: LLM call executes...
+
+    MW->>SDK: end span
+    SDK->>P1: on_end(span)
+    P1->>P1: _span_tenant_map[trace:span] = "acme"
+
+    SDK->>P2: on_end(span)
+    P2->>P2: read gen_ai.usage.input_tokens
+    P2->>P2: read gen_ai.usage.output_tokens
+    P2->>P2: lookup PRICING_TABLE["claude-sonnet-4-6"]
+    P2->>P2: cost = (1000 x $3/M) + (500 x $15/M)
+    P2->>P2: _span_cost_map[trace:span] = {cost_usd: 0.0105}
+
+    SDK->>P3: on_end(span)
+    P3->>P1: get_span_tenant(span) -> "acme"
+    P3->>P2: get_span_cost_data(span) -> {cost_usd, tokens}
+    P3->>P3: assemble LumenAIEvent (19 fields)
+    P3->>R: XADD LumenAI:events:acme {event JSON}
 ```
 
 ### Multi-Tenant Isolation
 
 ```mermaid
 graph TD
-    subgraph "Request A"
-        A1["FastAPI route"] --> A2["set_tenant_id
-        client-abc"]
-        A2 --> A3["LLM Span"]
-        A3 --> A4["Redis: LumenAI:events:client-abc"]
+    subgraph "Concurrent Async Requests"
+        subgraph "Coroutine A - asyncio Task"
+            A1["POST /chat"] --> A2["set_tenant_id('acme')"]
+            A2 --> A3["ContextVar Token A"]
+            A3 --> A4["anthropic.messages.create()"]
+            A4 --> A5["OTel Span: tenant=acme"]
+        end
+
+        subgraph "Coroutine B - asyncio Task"
+            B1["POST /chat"] --> B2["set_tenant_id('globex')"]
+            B2 --> B3["ContextVar Token B"]
+            B3 --> B4["openai.chat.completions()"]
+            B4 --> B5["OTel Span: tenant=globex"]
+        end
     end
 
-    subgraph "Request B"
-        B1["FastAPI route"] --> B2["set_tenant_id
-        client-xyz"]
-        B2 --> B3["LLM Span"]
-        B3 --> B4["Redis: LumenAI:events:client-xyz"]
+    subgraph "Tenant-Isolated Streams"
+        A5 --> RA["LumenAI:events:acme"]
+        B5 --> RB["LumenAI:events:globex"]
     end
 
-    A4 --> A5["Client ABC Dashboard"]
-    B4 --> B5["Client XYZ Dashboard"]
+    RA --> DA["Acme billing: $0.0105"]
+    RB --> DB["Globex billing: $0.0023"]
+
+    style A3 fill:#0f3460,stroke:#e94560,color:#fff
+    style B3 fill:#0f3460,stroke:#16c79a,color:#fff
+```
+
+### Side-Dict Architecture
+
+```mermaid
+graph LR
+    subgraph "Thread-Safe Storage"
+        TM["_span_tenant_map"]
+        CM["_span_cost_map"]
+    end
+
+    subgraph "Key Format"
+        K["trace_id:032x : span_id:016x"]
+    end
+
+    subgraph "GC Policy"
+        MAX["MAX_ENTRIES = 50,000"]
+        LRU["LRU eviction: 10% batch"]
+        LOCK["threading.Lock per map"]
+    end
+
+    K --> TM
+    K --> CM
+    MAX --> LRU
+
+    style TM fill:#1a1a2e,stroke:#e94560,color:#fff
+    style CM fill:#1a1a2e,stroke:#e94560,color:#fff
 ```
 
 ### Package Structure
 
 ```mermaid
 graph TD
-    Core["lumen-ai-core
-    required
-    processors, pricing,
-    exporters, schema"]
+    APP["Your Application"]
 
-    Celery["lumen-ai-celery
-    optional
-    CeleryInstrumentor
-    signal hooks"]
+    subgraph CORE["lumen-ai-core - required"]
+        P1["TenantSpanProcessor"]
+        P2["CostComputingSpanProcessor"]
+        P3["EventNormalizerProcessor"]
+        PR["DefaultPricingProvider"]
+        EX["RedisExporter"]
+        SC["PRICING_TABLE + semconv"]
+    end
 
-    OpenLIT["lumen-ai-openlit
-    optional
-    OpenLITBridge
-    60+ LLM providers"]
+    subgraph CEL["lumen-ai-celery - optional"]
+        CI["CeleryInstrumentor"]
+        SIG["task_prerun / postrun / failure"]
+    end
 
-    Core --> Celery
-    Core --> OpenLIT
+    subgraph OL["lumen-ai-openlit - optional"]
+        OB["OpenLITBridge"]
+        AUTO["60+ LLM providers"]
+    end
 
-    App["Your App"] --> Core
-    App -.->|"+ Celery workers"| Celery
-    App -.->|"+ OpenLIT auto-instr"| OpenLIT
+    APP --> CORE
+    APP -.->|"+ background tasks"| CEL
+    APP -.->|"+ auto-instrumentation"| OL
+    CEL --> CORE
+    OL --> CORE
 ```
 
 ---
 
 ## Installation
 
-### From Git (current — pre-PyPI)
+### From PyPI
 
 ```bash
 # Core (always required)
-pip install "lumen-ai-core @ git+https://github.com/skarL007/-lumen-ai-sdk.git#subdirectory=packages/lumen-ai-core"
+pip install lumen-ai-core
 
 # Optional: Celery instrumentation
-pip install "lumen-ai-celery @ git+https://github.com/skarL007/-lumen-ai-sdk.git#subdirectory=packages/lumen-ai-celery"
+pip install lumen-ai-celery
 
 # Optional: OpenLIT bridge (auto-instruments 60+ LLM providers)
-pip install "lumen-ai-openlit @ git+https://github.com/skarL007/-lumen-ai-sdk.git#subdirectory=packages/lumen-ai-openlit"
+pip install lumen-ai-openlit
 ```
 
-### From PyPI (v0.2 — coming soon)
+### From Git (development)
 
 ```bash
-# Not yet published — watch this repo for the release announcement
-pip install lumen-ai-core
-pip install lumen-ai-celery    # optional
-pip install lumen-ai-openlit   # optional
+pip install "lumen-ai-core @ git+https://github.com/skarL007/-lumen-ai-sdk.git#subdirectory=packages/lumen-ai-core"
 ```
 
 ### Local Development
@@ -805,7 +855,11 @@ async def live_cost_stream(tenant_id: str):
 │           └── bridge.py                # OpenLITBridge (60+ LLM provider auto-instr)
 │
 ├── tests/
-│   └── test_smoke.py                    # 13 smoke tests — CI on every push
+│   ├── test_smoke.py                    # 13 smoke tests — CI on every push
+│   └── test_processors.py              # 9 processor unit tests
+│
+├── examples/
+│   └── fastapi-quickstart/              # Docker + Redis + Anthropic example
 │
 ├── lumen-demo.html                      # Interactive demo (GitHub Pages)
 ├── lumen-preview.png                    # Hero image for README
@@ -823,9 +877,9 @@ async def live_cost_stream(tenant_id: str):
 <details>
 <summary><strong>v0.2 — PyPI Release & DX Polish</strong></summary>
 
-- [ ] Publish `lumen-ai-core` to PyPI via trusted publishing on GitHub Release
-- [ ] Publish `lumen-ai-celery` and `lumen-ai-openlit` to PyPI
-- [ ] `pip install lumen-ai-core` works without git URL
+- [x] Publish `lumen-ai-core` to PyPI via trusted publishing on GitHub Release
+- [x] Publish `lumen-ai-celery` and `lumen-ai-openlit` to PyPI
+- [x] `pip install lumen-ai-core` works without git URL
 - [ ] Add `py.typed` marker (PEP 561 — full mypy / pyright support)
 - [ ] Async `RedisExporter` using `redis.asyncio` (non-blocking writes)
 - [ ] `LumenAI.init()` validates configuration and raises descriptive errors on misconfiguration
