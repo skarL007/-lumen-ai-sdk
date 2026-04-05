@@ -1,0 +1,12 @@
+[project]
+name = "LumenAI-sdk"
+version = "0.1.0"
+description = "LumenAI — High-Performance AI Observability Framework"
+requires-python = ">=3.11"
+
+[tool.uv.workspace]
+members = [
+    "packages/lumen-ai-core",
+    "packages/lumen-ai-celery",
+    "packages/lumen-ai-openlit",
+]

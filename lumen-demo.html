@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LumenAI | Neural FinOps Simulation</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #00F5FF; --secondary: #9D4EDD; --bg: #050505; }
+        body { background-color: var(--bg); font-family: 'Inter', sans-serif; color: white; overflow: hidden; }
+        
+        /* 3D Prism Animation */
+        .prism-3d {
+            width: 160px; height: 160px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+            animation: rotate3D 6s infinite linear;
+            filter: drop-shadow(0 0 40px rgba(0, 245, 255, 0.5));
+        }
+        @keyframes rotate3D {
+            0% { transform: perspective(500px) rotateY(0deg) rotateX(10deg); filter: hue-rotate(0deg); }
+            50% { transform: perspective(500px) rotateY(180deg) rotateX(-10deg); filter: hue-rotate(45deg); }
+            100% { transform: perspective(500px) rotateY(360deg) rotateX(10deg); filter: hue-rotate(0deg); }
+        }
+
+        .glass-panel {
+            background: rgba(10, 10, 10, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        
+        .code-font { font-family: 'JetBrains Mono', monospace; }
+        
+        .scanline {
+            width: 100%; height: 2px;
+            background: rgba(0, 245, 255, 0.05);
+            position: absolute;
+            animation: scan 4s linear infinite;
+            z-index: 50;
+            pointer-events: none;
+        }
+        @keyframes scan { 0% { top: 0%; } 100% { top: 100%; } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const MODELS = [
+            { name: 'gpt-4o', in: 5.0, out: 15.0, color: '#00F5FF' },
+            { name: 'claude-3-5-sonnet', in: 3.0, out: 15.0, color: '#9D4EDD' },
+            { name: 'deepseek-v3', in: 0.27, out: 0.40, color: '#FFD700' },
+        ];
+
+        function App() {
+            const [isSimulating, setIsSimulating] = useState(false);
+            const [totalCost, setTotalCost] = useState(0);
+            const [savings, setSavings] = useState(0);
+            const [spans, setSpans] = useState([]);
+            const [tenant, setTenant] = useState('Stark Industries');
+
+            useEffect(() => {
+                if (!isSimulating) return;
+                const interval = setInterval(() => {
+                    const model = MODELS[Math.floor(Math.random() * MODELS.length)];
+                    const inT = Math.floor(Math.random() * 2000) + 100;
+                    const outT = Math.floor(Math.random() * 1000) + 50;
+                    const cost = (inT * model.in / 1000000) + (outT * model.out / 1000000);
+                    const gpt4Cost = (inT * 10.0 / 1000000) + (outT * 30.0 / 1000000);
+                    const saved = Math.max(0, gpt4Cost - cost);
+
+                    const newSpan = {
+                        id: Math.random().toString(36).substring(7).toUpperCase(),
+                        model: model.name,
+                        cost: cost,
+                        color: model.color,
+                        time: new Date().toLocaleTimeString()
+                    };
+
+                    setSpans(prev => [newSpan, ...prev].slice(0, 8));
+                    setTotalCost(prev => prev + cost);
+                    setSavings(prev => prev + saved);
+                }, 800);
+                return () => clearInterval(interval);
+            }, [isSimulating]);
+
+            return (
+                <div className="relative h-screen w-full flex flex-col p-10 select-none bg-[#050505]">
+                    <div className="scanline"></div>
+                    
+                    <div className="flex justify-between items-end mb-16">
+                        <div>
+                            <div className="flex items-center gap-4 mb-2">
+                                <div className="prism-3d" style={{ width: '30px', height: '30px', animationDuration: '3s' }}></div>
+                                <h1 className="text-3xl font-bold tracking-tighter italic text-white">LUMEN<span className="text-cyan-400">AI</span></h1>
+                            </div>
+                            <p className="text-[10px] text-gray-500 tracking-[0.4em] uppercase">Neural FinOps Architecture</p>
+                        </div>
+                        
+                        <div className="flex gap-10 text-right">
+                            <div className="group">
+                                <p className="text-[10px] text-gray-600 mb-1 uppercase tracking-widest font-bold">System Status</p>
+                                <p className="text-xs font-bold text-green-500">OPERATIONAL // 100%</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-gray-600 mb-1 uppercase tracking-widest font-bold">Tenant</p>
+                                <p className="text-xs font-bold text-white">{tenant}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 grid grid-cols-12 gap-10">
+                        <div className="col-span-4 glass-panel rounded-3xl p-8 flex flex-col">
+                            <h2 className="text-[10px] uppercase text-cyan-400 mb-8 tracking-[0.3em] font-bold underline decoration-cyan-400/30 underline-offset-8">Telemetry Stream</h2>
+                            <div className="flex-1 space-y-6 overflow-hidden code-font">
+                                {spans.map(s => (
+                                    <div key={s.id} className="text-[11px] border-l-2 pl-4 animate-in slide-in-from-left duration-500" style={{ borderColor: s.color }}>
+                                        <div className="flex justify-between opacity-30 mb-1 text-[9px] text-white"><span>{s.time}</span><span>ID: {s.id}</span></div>
+                                        <div className="flex gap-2"><span className="text-white/40">model:</span><span style={{ color: s.color }}>"{s.model}"</span></div>
+                                        <div className="flex gap-2"><span className="text-white/40">status:</span><span className="text-green-400">ENRICHED_OK</span></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="col-span-4 flex flex-col items-center justify-center">
+                            <div className={`prism-3d mb-16 ${isSimulating ? '' : 'grayscale opacity-20'}`}></div>
+                            <button 
+                                onClick={() => setIsSimulating(!isSimulating)}
+                                className={`px-12 py-4 rounded-full text-[11px] font-bold tracking-[0.3em] transition-all duration-500 ${
+                                    isSimulating ? 'text-red-500 border border-red-500/30 hover:bg-red-500 hover:text-white' : 'text-black bg-cyan-400 hover:scale-105 shadow-[0_0_40px_rgba(0,245,255,0.3)]'
+                                }`}
+                            >
+                                {isSimulating ? 'TERMINATE SESSION' : 'INITIALIZE ENGINE'}
+                            </button>
+                        </div>
+
+                        <div className="col-span-4 flex flex-col gap-8">
+                            <div className="glass-panel rounded-3xl p-10 flex-1 flex flex-col justify-center">
+                                <h2 className="text-[10px] uppercase text-gray-500 mb-4 tracking-[0.3em] font-bold">Accrued Cost</h2>
+                                <div className="text-6xl font-bold tracking-tighter code-font mb-6 leading-none text-white">
+                                    <span className="text-white/10">$</span>{totalCost.toFixed(6)}
+                                </div>
+                                <div className="flex items-center gap-2 text-green-400 text-xs font-bold bg-green-400/5 p-3 rounded-xl border border-green-400/10">
+                                    LUMEN SAVINGS: ${savings.toFixed(4)}
+                                </div>
+                            </div>
+                            <div className="glass-panel rounded-3xl p-8 h-64">
+                                <h2 className="text-[10px] uppercase text-gray-500 mb-8 tracking-[0.3em] font-bold">Model Distribution</h2>
+                                <div className="space-y-6">
+                                    {MODELS.map(m => {
+                                        const count = spans.filter(s => s.model === m.name).length;
+                                        return (
+                                            <div key={m.name}>
+                                                <div className="flex justify-between text-[10px] mb-2 uppercase tracking-widest font-bold">
+                                                    <span className="text-white/40">{m.name}</span><span style={{ color: m.color }}>{count} hits</span>
+                                                </div>
+                                                <div className="h-[1px] w-full bg-white/5"><div className="h-full transition-all duration-700" style={{ width: `${(count/8)*100}%`, backgroundColor: m.color, boxShadow: `0 0 10px ${m.color}` }}></div></div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

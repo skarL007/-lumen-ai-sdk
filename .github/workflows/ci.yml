@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [LumenAI, main]
+  pull_request:
+    branches: [LumenAI, main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install core package
+        run: pip install -e packages/lumen-ai-core
+
+      - name: Verify import
+        run: python -c "from lumen_ai import LumenAI, BaseInstrumentor; print('Import OK')"
+
+      - name: Run smoke tests
+        run: |
+          pip install pytest
+          pytest tests/test_smoke.py -v
+
+      - name: Install all packages
+        run: |
+          pip install -e packages/lumen-ai-celery
+          pip install -e packages/lumen-ai-openlit
+
+      - name: Build wheel artifacts
+        run: |
+          pip install build
+          python -m build packages/lumen-ai-core --wheel --outdir /tmp/dist
+          ls /tmp/dist
