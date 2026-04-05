@@ -3,6 +3,7 @@ name = "lumen-ai-celery"
 version = "0.1.0"
 description = "LumenAI Celery Instrumentor — background task observability for AI workloads"
 requires-python = ">=3.11"
+readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "skarL007", email = "zpka21@hotmail.com" }]
 keywords = ["celery", "observability", "opentelemetry", "finops", "ai", "background-tasks"]

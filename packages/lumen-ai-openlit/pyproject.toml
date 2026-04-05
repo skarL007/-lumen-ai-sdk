@@ -3,6 +3,7 @@ name = "lumen-ai-openlit"
 version = "0.1.0"
 description = "LumenAI OpenLIT Bridge — zero-code LLM auto-instrumentation"
 requires-python = ">=3.11"
+readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "skarL007", email = "zpka21@hotmail.com" }]
 keywords = ["openlit", "observability", "opentelemetry", "llm", "auto-instrumentation", "ai"]
