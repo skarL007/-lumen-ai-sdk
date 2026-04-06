@@ -13,8 +13,8 @@ from typing import Optional
 
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 
-from lumen_ai.schema.semconv import GenAIAttributes, OpenInferenceAttributes
 from lumen_ai.providers import BasePricingProvider
+from lumen_ai.schema.semconv import GenAIAttributes, OpenInferenceAttributes
 
 logger = logging.getLogger(__name__)
 

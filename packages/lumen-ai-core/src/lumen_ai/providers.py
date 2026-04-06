@@ -8,7 +8,7 @@ import abc
 import json
 import logging
 import threading
-from typing import Optional, Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +63,9 @@ class CommunityPricingProvider(BasePricingProvider):
         self._ttl = 3600  # Refresh every hour
 
     def _fetch_remote(self):
-        import urllib.request
         import json
         import time
+        import urllib.request
         if time.time() - self._last_fetch < self._ttl:
             return
         try:

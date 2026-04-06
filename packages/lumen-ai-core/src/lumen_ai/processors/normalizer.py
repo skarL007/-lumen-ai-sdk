@@ -14,13 +14,13 @@ from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 
 from lumen_ai.processors.cost import get_span_cost_data
 from lumen_ai.processors.tenant import get_span_tenant
+from lumen_ai.providers import BaseLumenAIExporter
+from lumen_ai.schema.event_types import EventType, Severity
 from lumen_ai.schema.semconv import (
     GenAIAttributes,
     LumenAIAttributes,
     OpenInferenceAttributes,
 )
-from lumen_ai.schema.event_types import EventType, Severity
-from lumen_ai.providers import BaseLumenAIExporter
 
 logger = logging.getLogger(__name__)
 

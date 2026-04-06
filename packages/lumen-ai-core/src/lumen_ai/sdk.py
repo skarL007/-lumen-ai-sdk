@@ -16,7 +16,6 @@ from typing import List, Optional
 
 from opentelemetry import trace
 
-from lumen_ai.tracer import create_tracer_provider
 from lumen_ai.providers import (
     BaseLumenAIExporter,
     BasePricingProvider,
@@ -24,6 +23,7 @@ from lumen_ai.providers import (
     RedisExporter,
 )
 from lumen_ai.schema.semconv import PRICING_TABLE
+from lumen_ai.tracer import create_tracer_provider
 
 logger = logging.getLogger(__name__)
 

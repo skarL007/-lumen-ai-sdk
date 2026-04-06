@@ -1,12 +1,12 @@
+from .event_types import EventType, Severity
 from .semconv import (
+    PRICING_TABLE,
     GenAIAttributes,
+    LumenAIAttributes,
     OpenInferenceAttributes,
     SpanKind,
-    LumenAIAttributes,
-    PRICING_TABLE,
     compute_cost,
 )
-from .event_types import EventType, Severity
 
 __all__ = [
     "GenAIAttributes",

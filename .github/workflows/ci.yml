@@ -7,6 +7,27 @@ on:
     branches: [LumenAI, main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install linters
+        run: pip install ruff mypy
+
+      - name: Ruff check
+        run: ruff check packages/lumen-ai-core/src/ --select E,F,W,I --ignore E501
+
+      - name: Mypy type check
+        run: |
+          pip install -e packages/lumen-ai-core
+          mypy packages/lumen-ai-core/src/lumen_ai/ --ignore-missing-imports --no-error-summary || true
+
   test:
     runs-on: ubuntu-latest
 
@@ -35,10 +56,19 @@ jobs:
       - name: Verify import
         run: python -c "from lumen_ai import LumenAI, BaseInstrumentor; print('Import OK')"
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: |
-          pip install pytest
-          pytest tests/ -v
+          pip install pytest pytest-cov
+          pytest tests/ -v --cov=lumen_ai --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        if: github.event_name == 'push'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Install all packages
         run: |

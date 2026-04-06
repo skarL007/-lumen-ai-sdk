@@ -15,10 +15,10 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-from lumen_ai.processors.tenant import TenantSpanProcessor
 from lumen_ai.processors.cost import CostComputingSpanProcessor
 from lumen_ai.processors.normalizer import EventNormalizerProcessor
-from lumen_ai.providers import BasePricingProvider, BaseLumenAIExporter
+from lumen_ai.processors.tenant import TenantSpanProcessor
+from lumen_ai.providers import BaseLumenAIExporter, BasePricingProvider
 
 logger = logging.getLogger(__name__)
 

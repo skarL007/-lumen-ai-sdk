@@ -16,6 +16,7 @@
 [![lumen-ai-openlit](https://img.shields.io/pypi/v/lumen-ai-openlit?style=flat-square&logo=pypi&logoColor=white&label=openlit)](https://pypi.org/project/lumen-ai-openlit/)
 [![Sponsor](https://img.shields.io/badge/sponsor-%E2%9D%A4-ff69b4?style=flat-square&logo=github-sponsors&logoColor=white)](https://github.com/sponsors/skarL007)
 [![Stars](https://img.shields.io/github/stars/skarL007/-lumen-ai-sdk?style=flat-square&logo=github)](https://github.com/skarL007/-lumen-ai-sdk/stargazers)
+[![codecov](https://codecov.io/gh/skarL007/-lumen-ai-sdk/branch/LumenAI/graph/badge.svg)](https://codecov.io/gh/skarL007/-lumen-ai-sdk)
 
 ---
 
@@ -29,6 +30,16 @@
 [Discord: skar1v9](https://discord.com/users/skar1v9)
 
 </div>
+
+---
+
+## Table of Contents
+
+- [The Problem](#the-problem) | [Why LumenAI?](#why-lumenai) | [How It Works](#how-it-works) | [Architecture](#architecture)
+- [Installation](#installation) | [Quick Start](#quick-start) | [API Reference](#api-reference)
+- [Event Schema](#event-schema) | [Pricing Providers](#pricing-providers) | [Exporters](#exporters)
+- [Integrations](#integrations) | [Use Cases](#use-cases) | [Examples](#examples)
+- [Repository Structure](#repository-structure) | [Roadmap](#roadmap) | [Contributing](#contributing)
 
 ---
 
@@ -815,6 +826,19 @@ async def live_cost_stream(tenant_id: str):
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 ```
+
+---
+
+## Examples
+
+Ready-to-run examples in the [`examples/`](examples/) directory:
+
+| Example | Description |
+|---------|-------------|
+| [`fastapi-quickstart/`](examples/fastapi-quickstart/) | FastAPI + Redis + Docker Compose — full setup |
+| [`langchain-cost-tracking/`](examples/langchain-cost-tracking/) | LangChain with automatic per-tenant cost tracking |
+| [`celery-background-tasks/`](examples/celery-background-tasks/) | Celery worker with AI cost observability |
+| [`custom-exporter/`](examples/custom-exporter/) | Write your own exporter (JSONL file example) |
 
 ---
 
