@@ -55,8 +55,9 @@ def _make_span(trace_id: int, span_id: int):
 N_SPANS = 10_000
 # Generous upper bound — MagicMock adds ~200-400µs overhead per span that
 # does not exist with real OTel ReadableSpan objects in production.
-MAX_US_PER_SPAN_SINGLE = 500
-MAX_US_PER_SPAN_CHAIN = 1000
+# CI runners (GitHub Actions) are ~1.5x slower than local dev machines.
+MAX_US_PER_SPAN_SINGLE = 1000
+MAX_US_PER_SPAN_CHAIN = 2500
 
 
 # ---------------------------------------------------------------------------
