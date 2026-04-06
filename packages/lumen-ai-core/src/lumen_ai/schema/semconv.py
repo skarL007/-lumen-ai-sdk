@@ -67,22 +67,38 @@ class LumenAIAttributes:
 # ─── Model Pricing Table (per 1M tokens) ─────────────────────────────────────
 
 PRICING_TABLE: dict[str, dict[str, float]] = {
-    # Anthropic
-    "claude-opus-4-6":     {"input": 15.00, "output": 75.00, "cache_read": 1.50},
-    "claude-sonnet-4-6":   {"input": 3.00,  "output": 15.00, "cache_read": 0.30},
-    "claude-haiku-4-5":    {"input": 0.25,  "output": 1.25,  "cache_read": 0.025},
-    # DeepSeek
-    "deepseek/deepseek-v3.2": {"input": 0.26, "output": 0.40, "cache_read": 0.026},
-    "deepseek/deepseek-r1":   {"input": 0.70, "output": 2.50, "cache_read": 0.07},
-    # Google
-    "google/gemini-2.5-pro":       {"input": 1.25, "output": 10.00, "cache_read": 0.125},
-    "google/gemini-2.5-flash-lite": {"input": 0.10, "output": 0.40, "cache_read": 0.01},
-    # OpenAI
-    "openai/text-embedding-3-small": {"input": 0.02, "output": 0.0, "cache_read": 0.0},
-    # Local (free)
-    "ollama/gemma3:12b":    {"input": 0.0, "output": 0.0, "cache_read": 0.0},
-    "ollama/gemma3:1b":     {"input": 0.0, "output": 0.0, "cache_read": 0.0},
-    "ollama/nomic-embed-text": {"input": 0.0, "output": 0.0, "cache_read": 0.0},
+    # ── Anthropic ────────────────────────────────────────────────────────
+    "claude-opus-4-6":              {"input": 15.00, "output": 75.00, "cache_read": 1.50},
+    "claude-sonnet-4-6":            {"input": 3.00,  "output": 15.00, "cache_read": 0.30},
+    "claude-haiku-4-5":             {"input": 0.25,  "output": 1.25,  "cache_read": 0.025},
+    "anthropic/claude-opus-4-6":    {"input": 15.00, "output": 75.00, "cache_read": 1.50},
+    "anthropic/claude-sonnet-4-6":  {"input": 3.00,  "output": 15.00, "cache_read": 0.30},
+    "anthropic/claude-haiku-4-5":   {"input": 0.25,  "output": 1.25,  "cache_read": 0.025},
+    # ── OpenAI ───────────────────────────────────────────────────────────
+    "gpt-4o":                       {"input": 2.50,  "output": 10.00, "cache_read": 1.25},
+    "gpt-4o-mini":                  {"input": 0.15,  "output": 0.60,  "cache_read": 0.075},
+    "gpt-4.1":                      {"input": 2.00,  "output": 8.00,  "cache_read": 0.50},
+    "gpt-4.1-mini":                 {"input": 0.40,  "output": 1.60,  "cache_read": 0.10},
+    "gpt-4.1-nano":                 {"input": 0.10,  "output": 0.40,  "cache_read": 0.025},
+    "o3-mini":                      {"input": 1.10,  "output": 4.40,  "cache_read": 0.55},
+    "openai/text-embedding-3-small": {"input": 0.02, "output": 0.0,   "cache_read": 0.0},
+    # ── DeepSeek ─────────────────────────────────────────────────────────
+    "deepseek/deepseek-v3.2":       {"input": 0.26,  "output": 0.40,  "cache_read": 0.026},
+    "deepseek/deepseek-r1":         {"input": 0.70,  "output": 2.50,  "cache_read": 0.07},
+    # ── Google ───────────────────────────────────────────────────────────
+    "google/gemini-2.5-pro":        {"input": 1.25,  "output": 10.00, "cache_read": 0.125},
+    "google/gemini-2.5-flash":      {"input": 0.15,  "output": 0.60,  "cache_read": 0.0375},
+    "google/gemini-2.5-flash-lite": {"input": 0.10,  "output": 0.40,  "cache_read": 0.01},
+    # ── Mistral ──────────────────────────────────────────────────────────
+    "mistral/mistral-large":        {"input": 2.00,  "output": 6.00,  "cache_read": 0.20},
+    "mistral/mistral-small":        {"input": 0.10,  "output": 0.30,  "cache_read": 0.01},
+    # ── Meta (via OpenRouter/Together) ───────────────────────────────────
+    "meta-llama/llama-4-maverick":  {"input": 0.20,  "output": 0.60,  "cache_read": 0.02},
+    "meta-llama/llama-4-scout":     {"input": 0.15,  "output": 0.40,  "cache_read": 0.015},
+    # ── Local (free) ─────────────────────────────────────────────────────
+    "ollama/gemma3:12b":            {"input": 0.0,   "output": 0.0,   "cache_read": 0.0},
+    "ollama/gemma3:1b":             {"input": 0.0,   "output": 0.0,   "cache_read": 0.0},
+    "ollama/nomic-embed-text":      {"input": 0.0,   "output": 0.0,   "cache_read": 0.0},
 }
 
 

@@ -1,6 +1,6 @@
 [project]
 name = "lumen-ai-core"
-version = "0.1.0"
+version = "0.1.1"
 description = "LumenAI Core — Real-time FinOps & Observability layer for Generative AI"
 requires-python = ">=3.11"
 readme = "README.md"

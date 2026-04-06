@@ -75,6 +75,24 @@ class LumenAI:
             logger.warning("LumenAI.init() called more than once — ignoring")
             return
 
+        # Validate configuration
+        if not default_tenant or not default_tenant.strip():
+            raise ValueError("default_tenant must be a non-empty string")
+        if redis_url and exporter:
+            raise ValueError(
+                "Cannot pass both redis_url and exporter — choose one. "
+                "redis_url creates a RedisExporter automatically."
+            )
+        if redis_url and not redis_url.startswith(("redis://", "rediss://")):
+            raise ValueError(
+                f"Invalid redis_url '{redis_url}': must start with redis:// or rediss://"
+            )
+        if enable_otlp and not otlp_endpoint:
+            logger.warning(
+                "enable_otlp=True but no otlp_endpoint — "
+                "will use OTEL_EXPORTER_OTLP_ENDPOINT env var or localhost:4317"
+            )
+
         logger.info("LumenAI initializing (service=%s)", service_name)
 
         # Pricing

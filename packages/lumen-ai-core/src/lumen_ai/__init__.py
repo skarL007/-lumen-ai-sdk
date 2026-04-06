@@ -9,4 +9,4 @@ from lumen_ai.sdk import LumenAI
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 
 __all__ = ["LumenAI", "BaseInstrumentor"]
-__version__ = "0.1.0"
+__version__ = "0.1.1"

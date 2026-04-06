@@ -16,12 +16,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **RedisExporter**: elevated export failure log from `DEBUG` to `WARNING`
 
 ### Added
+- `AsyncRedisExporter` — non-blocking buffered exporter with batch flush for async frameworks
+- Expanded pricing table: OpenAI (GPT-4o, 4.1, o3-mini), Anthropic aliases, Mistral, Meta Llama 4, Gemini Flash (~30 models)
+- Input validation on `LumenAI.init()` — rejects empty tenant, invalid redis_url, conflicting redis_url+exporter
 - `py.typed` marker (PEP 561) for mypy/pyright support
 - `otlp_insecure` parameter to `LumenAI.init()` — allows TLS for OTLP in production
+- Performance benchmarks (`test_benchmark.py`) — 10K spans, 4 scenarios
+- Integration tests with real Redis (`test_integration.py`) — roundtrip, tenant isolation, full pipeline
+- Redis service container in CI for integration tests
 - `CHANGELOG.md`
 
 ### Changed
-- CI now runs all 22 tests (`pytest tests/`) instead of only 13 smoke tests
+- CI now runs ~32 tests (smoke + processors + benchmarks + integration)
 - Updated CONTRIBUTING.md, SECURITY.md, and README.md to reflect current project state
 
 ---
