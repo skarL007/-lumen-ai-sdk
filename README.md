@@ -936,8 +936,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide: dev setup, architectu
 | Channel | Where |
 |---|---|
 | Bug reports & feature requests | [GitHub Issues](https://github.com/skarL007/-lumen-ai-sdk/issues) |
-| Discord | [skar1v9](https://discord.com/users/skar1v9) |
-| Instagram | [@skar1v9](https://instagram.com/skar1v9) |
 | Sponsor the project | [GitHub Sponsors](https://github.com/sponsors/skarL007) |
 
 This is the first open-source project by [skarL007](https://github.com/skarL007). If LumenAI saves you money or debugging time, consider starring the repo or sponsoring further development.
