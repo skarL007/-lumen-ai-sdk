@@ -161,6 +161,7 @@ temp_renames.txt
 
 # Internal / private files — never commit to public repo
 .claude/
+CLAUDE.md
 GEMINI.md
 discord_daily_bot.py
 draft_post.json
