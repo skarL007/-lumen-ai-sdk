@@ -79,6 +79,8 @@ LumenAI.init(
 )
 ```
 
+The smallest runnable example is [examples/jsonl-smoke](examples/jsonl-smoke).
+
 ## Local Demo
 
 Run a real SDK demo without OpenAI, Anthropic, or other paid credentials:
@@ -134,6 +136,13 @@ pip install -e packages/lumen-ai-celery
 pip install -e packages/lumen-ai-openlit
 pip install pytest pytest-cov fastapi httpx ruff mypy build
 
+python scripts/release_gate.py
+```
+
+The release gate runs tests, ruff, mypy, wheel builds, clean wheel install,
+`pip check`, and public import verification. To run individual gates:
+
+```bash
 python -m pytest tests -q
 python -m ruff check packages/lumen-ai-core/src packages/lumen-ai-celery/src packages/lumen-ai-openlit/src --select E,F,W,I --ignore E501
 python -m mypy packages/lumen-ai-core/src/lumen_ai --ignore-missing-imports --no-error-summary

@@ -1,7 +1,7 @@
 [project]
 name = "lumen-ai-openlit"
 version = "0.1.3"
-description = "LumenAI OpenLIT Bridge — zero-code LLM auto-instrumentation"
+description = "LumenAI OpenLIT Bridge - zero-code LLM auto-instrumentation"
 requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "MIT" }

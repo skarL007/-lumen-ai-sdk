@@ -1,8 +1,9 @@
 """
-LumenAI — custom exporter example.
+LumenAI - custom exporter example.
 
 Shows how to write your own exporter to send events to any sink
 (PostgreSQL, ClickHouse, Kafka, file, HTTP endpoint, etc.).
+For built-in local JSONL output, prefer `JsonlExporter`.
 
 Usage:
     pip install lumen-ai-core
@@ -10,6 +11,7 @@ Usage:
 """
 import json
 from pathlib import Path
+
 from lumen_ai import LumenAI
 from lumen_ai.providers import BaseLumenAIExporter
 
@@ -31,14 +33,14 @@ class JSONFileExporter(BaseLumenAIExporter):
     def export(self, tenant_id: str, event: dict) -> None:
         """
         Called by EventNormalizerProcessor for every span.
-        Must never raise — exceptions break the OTel pipeline.
+        Must never raise; exceptions break the OTel pipeline.
         """
         try:
             line = json.dumps(event, default=str)
             self._file.write(line + "\n")
             self._file.flush()
         except Exception:
-            pass  # Silent failure — OTel pipeline must not break
+            pass  # Silent failure; OTel pipeline must not break
 
     def shutdown(self) -> None:
         self._file.close()

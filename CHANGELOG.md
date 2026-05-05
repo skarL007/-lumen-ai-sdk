@@ -7,6 +7,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [Unreleased]
+
+### Added
+- `scripts/release_gate.py` to run the local release readiness gate.
+- `examples/jsonl-smoke` as a minimal no-service example using the real SDK.
+
+### Changed
+- Replaced example API-key placeholders with non-secret placeholders.
+- Updated contributor docs and issue templates for the current release line.
+
+---
+
 ## [0.1.3] - 2026-05-05
 
 ### Added

@@ -5,7 +5,7 @@ Minimal FastAPI app with real-time cost tracking per tenant.
 ## Run
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
+export ANTHROPIC_API_KEY=<your-key>
 docker compose up
 ```
 

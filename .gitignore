@@ -159,7 +159,7 @@ capture_lumen.py
 temp_renames.txt
 *.log
 
-# Internal / private files — never commit to public repo
+# Internal / private files - never commit to public repo
 .claude/
 CLAUDE.md
 GEMINI.md
@@ -168,3 +168,5 @@ draft_post.json
 test_content_generation.py
 lumen-preview.png
 *.local.json
+.runtime/
+*.jsonl

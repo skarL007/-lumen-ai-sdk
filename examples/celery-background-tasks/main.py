@@ -1,5 +1,5 @@
 """
-LumenAI + Celery — track AI costs in background tasks.
+LumenAI + Celery - track AI costs in background tasks.
 
 Prerequisites:
     pip install lumen-ai-core lumen-ai-celery redis celery

@@ -1,5 +1,5 @@
 """
-LumenAI Quickstart — FastAPI + Anthropic with real-time cost tracking.
+LumenAI Quickstart - FastAPI + Anthropic with real-time cost tracking.
 
 Run:
     docker compose up
@@ -10,10 +10,10 @@ Run:
 """
 from contextlib import asynccontextmanager
 
+import anthropic
 from fastapi import FastAPI, Request
 from lumen_ai import LumenAI
-from lumen_ai.processors.tenant import set_tenant_id, _current_tenant
-import anthropic
+from lumen_ai.processors.tenant import _current_tenant, set_tenant_id
 
 
 @asynccontextmanager

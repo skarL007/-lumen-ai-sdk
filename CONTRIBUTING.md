@@ -55,7 +55,7 @@ pip install pytest
 pytest tests/ -v
 ```
 
-All 22 tests should pass. If any fail on a clean clone, please [open an issue](https://github.com/skarL007/-lumen-ai-sdk/issues).
+The full test suite should pass. If any fail on a clean clone, please [open an issue](https://github.com/skarL007/-lumen-ai-sdk/issues).
 
 ---
 
@@ -388,7 +388,7 @@ chore: update opentelemetry-sdk dependency to >=1.31.0
 
 Before opening a pull request, verify the following:
 
-- [ ] All 22 tests pass: `pytest tests/ -v`
+- [ ] Full release gate passes: `python scripts/release_gate.py`
 - [ ] New code follows the patterns in the file it modifies (side-dicts, exception handling, logging style)
 - [ ] `export()` and `get_pricing()` implementations never raise exceptions to the caller
 - [ ] No hardcoded model names — use `PRICING_TABLE` keys or the `semconv.py` constants
@@ -417,7 +417,7 @@ pip install pytest-cov
 pytest tests/ --cov=lumen_ai --cov-report=term-missing
 ```
 
-The test suite uses `unittest.mock.MagicMock` to create minimal OTel span objects — no real OTel collector, Redis instance, or LLM provider is needed to run the tests. All 22 tests run in under 1 second.
+Most unit tests use `unittest.mock.MagicMock` to create minimal OTel span objects. The full suite also includes local demo and clean packaging coverage; run `python scripts/release_gate.py` before release work.
 
 ---
 
