@@ -8,6 +8,7 @@ import abc
 import json
 import logging
 import threading
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from lumen_ai.schema.event_types import LumenAIEvent
@@ -108,6 +109,27 @@ class RedisExporter(BaseLumenAIExporter):
 
     def shutdown(self) -> None:
         self._redis.close()
+
+
+class JsonlExporter(BaseLumenAIExporter):
+    """Append-only JSON Lines exporter for local demos and smoke tests."""
+
+    def __init__(self, path: str | Path):
+        self._path = Path(path)
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._file = self._path.open("a", encoding="utf-8")
+        self._lock = threading.Lock()
+
+    def export(self, tenant_id: str, event: LumenAIEvent) -> None:
+        line = json.dumps(event, default=str, separators=(",", ":"))
+        with self._lock:
+            self._file.write(line + "\n")
+            self._file.flush()
+
+    def shutdown(self) -> None:
+        with self._lock:
+            if not self._file.closed:
+                self._file.close()
 
 
 class AsyncRedisExporter(BaseLumenAIExporter):

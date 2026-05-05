@@ -2,7 +2,9 @@
 
 Real-time FinOps and multi-tenant observability for Generative AI workloads.
 
-LumenAI is a Python OpenTelemetry extension that enriches GenAI spans with tenant attribution, token cost, normalized event metadata, and Redis Streams delivery. It is designed for teams that need to understand which tenant, model, agent, or background job is driving AI cost without storing prompts or responses.
+![LumenAI local observability dashboard](docs/assets/lumen-dashboard.png)
+
+LumenAI is a Python OpenTelemetry extension that enriches GenAI spans with tenant attribution, token cost, normalized event metadata, and Redis Streams or JSONL delivery. It is designed for teams that need to understand which tenant, model, agent, or background job is driving AI cost without storing prompts or responses.
 
 [![Status: Alpha](https://img.shields.io/badge/status-alpha-orange?style=flat-square)](https://github.com/skarL007/-lumen-ai-sdk)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
@@ -11,7 +13,7 @@ LumenAI is a Python OpenTelemetry extension that enriches GenAI spans with tenan
 
 ## What Works Today
 
-- `lumen-ai-core`: OTel processor chain for tenant tagging, cost calculation, event normalization, Redis export, async Redis export, and typed public API.
+- `lumen-ai-core`: OTel processor chain for tenant tagging, cost calculation, event normalization, Redis export, JSONL export, async Redis export, and typed public API.
 - `lumen-ai-celery`: Celery signal instrumentor for task lifecycle spans without modifying task code.
 - `lumen-ai-openlit`: OpenLIT bridge that passes the LumenAI tracer provider into OpenLIT auto-instrumentation.
 - Redis integration tests, clean wheel build checks, package import checks, mypy on core, and non-blocking dependency audit in CI.
@@ -65,6 +67,18 @@ The event is written to:
 LumenAI:events:client-acme
 ```
 
+For local smoke tests or examples without Redis, use the JSONL exporter:
+
+```python
+from lumen_ai import JsonlExporter, LumenAI
+
+LumenAI.init(
+    service_name="my-ai-app",
+    exporter=JsonlExporter("lumen-events.jsonl"),
+    default_tenant="anonymous",
+)
+```
+
 ## Local Demo
 
 Run a real SDK demo without OpenAI, Anthropic, or other paid credentials:
@@ -91,6 +105,7 @@ The old static visual simulation is kept as [lumen-simulation.html](lumen-simula
 ```python
 from lumen_ai import (
     AsyncRedisExporter,
+    JsonlExporter,
     LumenAI,
     LumenAIEvent,
     RedisExporter,
@@ -137,6 +152,7 @@ The GitHub Actions `Benchmarks` workflow runs the same benchmark suite on demand
 
 ## Roadmap
 
+- v0.1.3: JSONL exporter, live dashboard screenshot, and benchmark workflow.
 - v0.1.2: package hardening, typed event contract, honest docs, local no-key demo, clean install CI.
 - v0.2: richer exporter examples, typed pricing provider contract, benchmark docs, OpenLIT compatibility matrix.
 - v0.3: production dashboard example backed by Redis or ClickHouse.

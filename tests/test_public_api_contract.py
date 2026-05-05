@@ -41,6 +41,7 @@ def _make_span_with_sensitive_attrs():
 def test_top_level_api_exports_stable_helpers():
     from lumen_ai import (
         AsyncRedisExporter,
+        JsonlExporter,
         LumenAI,
         LumenAIEvent,
         RedisExporter,
@@ -53,6 +54,7 @@ def test_top_level_api_exports_stable_helpers():
     assert LumenAI is not None
     assert RedisExporter is not None
     assert AsyncRedisExporter is not None
+    assert JsonlExporter is not None
     assert set_tenant_id is not None
     assert get_tenant_id is not None
     assert clear_tenant_id is not None

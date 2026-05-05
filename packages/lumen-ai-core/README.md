@@ -7,7 +7,7 @@ Core package for the LumenAI SDK.
 - `LumenAI.init()` and `LumenAI.shutdown()`
 - Tenant context helpers: `set_tenant_id`, `get_tenant_id`, `clear_tenant_id`, `lumen_tenant`
 - OTel processors for tenant tagging, cost computation, and event normalization
-- `RedisExporter` and `AsyncRedisExporter`
+- `RedisExporter`, `AsyncRedisExporter`, and `JsonlExporter`
 - `LumenAIEvent` typed event contract
 - SQLAlchemy ORM models for downstream storage integrations
 
@@ -29,6 +29,14 @@ with lumen_tenant("client-acme"):
     pass
 
 LumenAI.shutdown()
+```
+
+For a no-service local sink:
+
+```python
+from lumen_ai import JsonlExporter, LumenAI
+
+LumenAI.init(exporter=JsonlExporter("lumen-events.jsonl"))
 ```
 
 See the repository README for the full demo and development gates.

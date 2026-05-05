@@ -7,6 +7,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.1.3] - 2026-05-05
+
+### Added
+- `JsonlExporter` for local demos and smoke tests without Redis.
+- Top-level `JsonlExporter` export from `lumen_ai`.
+- Real dashboard screenshot in the root README.
+
+### Changed
+- Documented JSONL export as a no-service sink.
+
+---
+
 ## [0.1.2] - 2026-05-05
 
 ### Fixed

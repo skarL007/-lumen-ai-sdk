@@ -60,7 +60,7 @@ jobs:
           pip install pytest pytest-cov fastapi httpx
 
       - name: Verify public imports
-        run: python -c "from lumen_ai import LumenAI, BaseInstrumentor, RedisExporter, AsyncRedisExporter, lumen_tenant; from lumen_ai_celery import CeleryInstrumentor; from lumen_ai_openlit import OpenLITBridge; print('Import OK')"
+        run: python -c "from lumen_ai import LumenAI, BaseInstrumentor, RedisExporter, AsyncRedisExporter, JsonlExporter, lumen_tenant; from lumen_ai_celery import CeleryInstrumentor; from lumen_ai_openlit import OpenLITBridge; print('Import OK')"
 
       - name: Run tests with coverage
         run: pytest tests/ -v --cov=lumen_ai --cov-report=xml --cov-report=term-missing
@@ -99,7 +99,7 @@ jobs:
           python -m venv /tmp/lumen-clean
           /tmp/lumen-clean/bin/python -m pip install --upgrade pip
           /tmp/lumen-clean/bin/python -m pip install /tmp/lumen-dist/*.whl
-          /tmp/lumen-clean/bin/python -c "import lumen_ai; import lumen_ai.models; from lumen_ai import LumenAI, lumen_tenant; from lumen_ai_celery import CeleryInstrumentor; from lumen_ai_openlit import OpenLITBridge; print('Clean install OK')"
+          /tmp/lumen-clean/bin/python -c "import lumen_ai; import lumen_ai.models; from lumen_ai import LumenAI, JsonlExporter, lumen_tenant; from lumen_ai_celery import CeleryInstrumentor; from lumen_ai_openlit import OpenLITBridge; print('Clean install OK')"
 
   dependency-audit:
     runs-on: ubuntu-latest
