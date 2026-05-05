@@ -1,19 +1,23 @@
 import json
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Literal
 
 import redis
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from lumen_ai import LumenAI, lumen_tenant
+from lumen_ai.schema.semconv import GenAIAttributes, OpenInferenceAttributes, SpanKind
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel, Field
 
-from lumen_ai import LumenAI, lumen_tenant
-from lumen_ai.schema.semconv import GenAIAttributes, OpenInferenceAttributes, SpanKind
-
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 STREAM_PREFIX = "LumenAI:events"
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
 
 
 class SimulateRequest(BaseModel):
@@ -37,6 +41,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="LumenAI Local Observability Demo", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/", include_in_schema=False)
+def dashboard() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/health")

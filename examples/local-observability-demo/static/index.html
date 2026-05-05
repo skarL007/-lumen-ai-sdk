@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LumenAI Local Observability</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="toolbar" aria-label="Simulation controls">
+        <div>
+          <p class="eyebrow">Local SDK demo</p>
+          <h1>LumenAI Local Observability</h1>
+        </div>
+        <div class="controls">
+          <label>
+            Tenant
+            <input id="tenant-input" value="acme" autocomplete="off">
+          </label>
+          <label>
+            Model
+            <select id="model-input">
+              <option value="gpt-4o-mini">gpt-4o-mini</option>
+              <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+              <option value="google/gemini-2.5-flash">google/gemini-2.5-flash</option>
+            </select>
+          </label>
+          <label>
+            Input
+            <input id="input-tokens" type="number" min="0" value="1200">
+          </label>
+          <label>
+            Output
+            <input id="output-tokens" type="number" min="0" value="300">
+          </label>
+          <label class="check-control">
+            <input id="fail-input" type="checkbox">
+            Fail
+          </label>
+          <button id="simulate-button" type="button">Run span</button>
+        </div>
+      </section>
+
+      <section class="metrics" aria-label="Tenant metrics">
+        <article>
+          <span>Total cost</span>
+          <strong id="metric-cost">$0.000000</strong>
+        </article>
+        <article>
+          <span>Events</span>
+          <strong id="metric-events">0</strong>
+        </article>
+        <article>
+          <span>Tokens</span>
+          <strong id="metric-tokens">0</strong>
+        </article>
+        <article>
+          <span>Errors</span>
+          <strong id="metric-errors">0</strong>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <div class="chart-panel">
+          <div class="panel-header">
+            <h2>Cost trend</h2>
+            <button id="refresh-button" type="button">Refresh</button>
+          </div>
+          <canvas id="cost-chart" width="900" height="260"></canvas>
+        </div>
+
+        <div class="events-panel">
+          <div class="panel-header">
+            <h2>Latest normalized events</h2>
+            <span id="status-line">Ready</span>
+          </div>
+          <div id="events-list" class="events-list" aria-live="polite"></div>
+        </div>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

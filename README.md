@@ -74,7 +74,7 @@ cd examples/local-observability-demo
 docker compose up --build
 ```
 
-Then:
+Open `http://localhost:8000` for the dashboard, or use the API directly:
 
 ```bash
 curl -X POST http://localhost:8000/simulate \
@@ -117,12 +117,14 @@ from lumen_ai import (
 pip install -e packages/lumen-ai-core
 pip install -e packages/lumen-ai-celery
 pip install -e packages/lumen-ai-openlit
-pip install pytest pytest-cov ruff mypy build
+pip install pytest pytest-cov fastapi httpx ruff mypy build
 
 python -m pytest tests -q
 python -m ruff check packages/lumen-ai-core/src packages/lumen-ai-celery/src packages/lumen-ai-openlit/src --select E,F,W,I --ignore E501
 python -m mypy packages/lumen-ai-core/src/lumen_ai --ignore-missing-imports --no-error-summary
-python -m build packages/lumen-ai-core packages/lumen-ai-celery packages/lumen-ai-openlit
+python -m build packages/lumen-ai-core
+python -m build packages/lumen-ai-celery
+python -m build packages/lumen-ai-openlit
 ```
 
 Performance benchmarks are opt-in because they depend on local machine load:
@@ -130,6 +132,8 @@ Performance benchmarks are opt-in because they depend on local machine load:
 ```bash
 LUMEN_RUN_BENCHMARKS=1 python -m pytest tests/test_benchmark.py -v
 ```
+
+The GitHub Actions `Benchmarks` workflow runs the same benchmark suite on demand and weekly, separate from the correctness CI.
 
 ## Roadmap
 

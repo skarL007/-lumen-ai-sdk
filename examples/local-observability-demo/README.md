@@ -9,7 +9,7 @@ cd examples/local-observability-demo
 docker compose up --build
 ```
 
-In another terminal:
+Open `http://localhost:8000` for the dashboard. In another terminal, the same flow can be exercised through the API:
 
 ```bash
 curl -X POST http://localhost:8000/simulate \

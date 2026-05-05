@@ -2,14 +2,15 @@
 LumenAI SDK — performance benchmarks.
 
 Measures per-span overhead of the processor chain.
-No external services required. Skipped in CI (MagicMock overhead
-varies too much across runner hardware).
+No external services required. Benchmarks are opt-in because host load varies
+too much across local machines and CI runners.
 
 Run locally:
     pytest tests/test_benchmark.py -v
 """
-import sys
+# ruff: noqa: E402, I001
 import os
+import sys
 import time
 
 import pytest
@@ -24,12 +25,11 @@ pytestmark = pytest.mark.skipif(
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "lumen-ai-core", "src"))
 
-from unittest.mock import MagicMock
-from lumen_ai.processors.tenant import TenantSpanProcessor, set_tenant_id, _current_tenant
 from lumen_ai.processors.cost import CostComputingSpanProcessor
 from lumen_ai.processors.normalizer import EventNormalizerProcessor
-from lumen_ai.providers import DefaultPricingProvider, BaseLumenAIExporter
-from lumen_ai.schema.semconv import PRICING_TABLE, GenAIAttributes
+from lumen_ai.processors.tenant import TenantSpanProcessor, _current_tenant, set_tenant_id
+from lumen_ai.providers import BaseLumenAIExporter, DefaultPricingProvider
+from lumen_ai.schema.semconv import GenAIAttributes, PRICING_TABLE
 
 
 class NullExporter(BaseLumenAIExporter):
@@ -41,34 +41,48 @@ class NullExporter(BaseLumenAIExporter):
         self.count += 1
 
 
-def _make_span(trace_id: int, span_id: int):
-    """Create a realistic LLM span with token attributes."""
-    span = MagicMock()
-    span.context.trace_id = trace_id
-    span.context.span_id = span_id
-    span.name = "anthropic.messages.create"
-    span.start_time = 1_000_000_000
-    span.end_time = 1_200_000_000
-    span.status = MagicMock(status_code=0)
-    span.is_recording.return_value = True
+class FakeContext:
+    def __init__(self, trace_id: int, span_id: int):
+        self.trace_id = trace_id
+        self.span_id = span_id
 
-    attrs = {
-        GenAIAttributes.REQUEST_MODEL: "claude-sonnet-4-6",
-        GenAIAttributes.USAGE_INPUT_TOKENS: 1500,
-        GenAIAttributes.USAGE_OUTPUT_TOKENS: 800,
-        GenAIAttributes.USAGE_CACHE_READ: 200,
-    }
-    span.attributes = attrs
-    span.set_attribute = lambda k, v: attrs.update({k: v})
-    return span
+
+class FakeStatus:
+    status_code = 0
+    is_ok = True
+
+
+class FakeSpan:
+    def __init__(self, trace_id: int, span_id: int):
+        self.context = FakeContext(trace_id, span_id)
+        self.name = "anthropic.messages.create"
+        self.start_time = 1_000_000_000
+        self.end_time = 1_200_000_000
+        self.status = FakeStatus()
+        self.attributes = {
+            GenAIAttributes.REQUEST_MODEL: "claude-sonnet-4-6",
+            GenAIAttributes.USAGE_INPUT_TOKENS: 1500,
+            GenAIAttributes.USAGE_OUTPUT_TOKENS: 800,
+            GenAIAttributes.USAGE_CACHE_READ: 200,
+        }
+
+    def is_recording(self) -> bool:
+        return True
+
+    def set_attribute(self, key: str, value: object) -> None:
+        self.attributes[key] = value
+
+
+def _make_span(trace_id: int, span_id: int) -> FakeSpan:
+    """Create a lightweight LLM span with token attributes."""
+    return FakeSpan(trace_id, span_id)
 
 
 N_SPANS = 10_000
-# Generous upper bound — MagicMock adds ~200-400µs overhead per span that
-# does not exist with real OTel ReadableSpan objects in production.
-# CI runners (GitHub Actions) are ~1.5x slower than local dev machines.
-MAX_US_PER_SPAN_SINGLE = 1000
-MAX_US_PER_SPAN_CHAIN = 2500
+# Generous upper bound: host load still affects timings. The benchmark is a
+# regression guard, not a production latency SLA.
+MAX_US_PER_SPAN_SINGLE = 250
+MAX_US_PER_SPAN_CHAIN = 750
 
 
 # ---------------------------------------------------------------------------
@@ -90,8 +104,8 @@ def test_tenant_processor_overhead():
         _current_tenant.reset(token)
 
     us_per_span = (elapsed / N_SPANS) * 1_000_000
-    print(f"\n  TenantProcessor: {us_per_span:.1f} µs/span ({N_SPANS} spans in {elapsed:.3f}s)")
-    assert us_per_span < MAX_US_PER_SPAN_SINGLE, f"Too slow: {us_per_span:.1f} µs/span"
+    print(f"\n  TenantProcessor: {us_per_span:.1f} us/span ({N_SPANS} spans in {elapsed:.3f}s)")
+    assert us_per_span < MAX_US_PER_SPAN_SINGLE, f"Too slow: {us_per_span:.1f} us/span"
     proc.shutdown()
 
 
@@ -111,8 +125,8 @@ def test_cost_processor_overhead():
     elapsed = time.perf_counter() - start
 
     us_per_span = (elapsed / N_SPANS) * 1_000_000
-    print(f"\n  CostProcessor: {us_per_span:.1f} µs/span ({N_SPANS} spans in {elapsed:.3f}s)")
-    assert us_per_span < MAX_US_PER_SPAN_SINGLE, f"Too slow: {us_per_span:.1f} µs/span"
+    print(f"\n  CostProcessor: {us_per_span:.1f} us/span ({N_SPANS} spans in {elapsed:.3f}s)")
+    assert us_per_span < MAX_US_PER_SPAN_SINGLE, f"Too slow: {us_per_span:.1f} us/span"
     proc.shutdown()
 
 
@@ -143,10 +157,10 @@ def test_full_chain_overhead():
         _current_tenant.reset(token)
 
     us_per_span = (elapsed / N_SPANS) * 1_000_000
-    print(f"\n  Full chain: {us_per_span:.1f} µs/span ({N_SPANS} spans in {elapsed:.3f}s)")
+    print(f"\n  Full chain: {us_per_span:.1f} us/span ({N_SPANS} spans in {elapsed:.3f}s)")
     print(f"  Events exported: {exporter.count}")
     assert exporter.count == N_SPANS
-    assert us_per_span < MAX_US_PER_SPAN_CHAIN, f"Too slow: {us_per_span:.1f} µs/span"
+    assert us_per_span < MAX_US_PER_SPAN_CHAIN, f"Too slow: {us_per_span:.1f} us/span"
 
     p1.shutdown()
     p2.shutdown()
@@ -177,5 +191,5 @@ def test_pricing_lookup_speed():
 
     lookups = N_SPANS * len(models)
     us_per_lookup = (elapsed / lookups) * 1_000_000
-    print(f"\n  Pricing lookup: {us_per_lookup:.2f} µs/lookup ({lookups} lookups in {elapsed:.3f}s)")
-    assert us_per_lookup < 100, f"Too slow: {us_per_lookup:.2f} µs/lookup"
+    print(f"\n  Pricing lookup: {us_per_lookup:.2f} us/lookup ({lookups} lookups in {elapsed:.3f}s)")
+    assert us_per_lookup < 100, f"Too slow: {us_per_lookup:.2f} us/lookup"

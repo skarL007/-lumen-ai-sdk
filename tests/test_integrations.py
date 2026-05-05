@@ -1,3 +1,4 @@
+import builtins
 import os
 import sys
 import types
@@ -83,3 +84,44 @@ def test_celery_signal_handlers_track_success_without_worker():
 
     assert "task-1" not in _active_spans
     span.end.assert_called_once()
+
+
+def test_celery_signal_handlers_track_failure_without_worker():
+    from lumen_ai_celery.instrumentor import CeleryInstrumentor, _active_spans
+
+    span = MagicMock()
+    tracer = MagicMock()
+    tracer.start_span.return_value = span
+
+    instrumentor = CeleryInstrumentor()
+    instrumentor._tracer = tracer
+
+    task = MagicMock(name="Task")
+    task.name = "demo.failing_task"
+    error = RuntimeError("simulated task failure")
+
+    _active_spans.clear()
+    instrumentor._on_task_prerun(task_id="task-2", task=task, kwargs={"tenant_id": "acme"})
+    instrumentor._on_task_failure(task_id="task-2", exception=error)
+
+    assert "task-2" not in _active_spans
+    span.record_exception.assert_called_once_with(error)
+    span.end.assert_called_once()
+
+
+def test_openlit_bridge_missing_dependency_does_not_raise(monkeypatch):
+    from lumen_ai_openlit import OpenLITBridge
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "openlit":
+            raise ImportError("openlit unavailable")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    bridge = OpenLITBridge()
+    bridge._instrument(tracer_provider=object())
+
+    assert bridge._initialized is False
