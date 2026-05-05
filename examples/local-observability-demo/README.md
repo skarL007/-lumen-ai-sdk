@@ -12,9 +12,9 @@ docker compose up --build
 In another terminal:
 
 ```bash
-curl -X POST http://localhost:8000/simulate ^
-  -H "Content-Type: application/json" ^
-  -d "{\"tenant_id\":\"acme\",\"model\":\"gpt-4o-mini\",\"input_tokens\":1200,\"output_tokens\":300}"
+curl -X POST http://localhost:8000/simulate \
+  -H "Content-Type: application/json" \
+  -d '{"tenant_id":"acme","model":"gpt-4o-mini","input_tokens":1200,"output_tokens":300}'
 
 curl http://localhost:8000/events/acme
 ```
