@@ -15,7 +15,7 @@ from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from lumen_ai.processors.cost import get_span_cost_data
 from lumen_ai.processors.tenant import get_span_tenant
 from lumen_ai.providers import BaseLumenAIExporter
-from lumen_ai.schema.event_types import EventType, Severity
+from lumen_ai.schema.event_types import EventType, LumenAIEvent, Severity
 from lumen_ai.schema.semconv import (
     GenAIAttributes,
     LumenAIAttributes,
@@ -23,6 +23,14 @@ from lumen_ai.schema.semconv import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _attribute_to_str(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (str, int, float, bool)):
+        return str(value)
+    return ""
 
 
 def _is_error(span: ReadableSpan) -> bool:
@@ -39,9 +47,9 @@ def _is_error(span: ReadableSpan) -> bool:
 def _span_to_event_type(span: ReadableSpan) -> str:
     """Infer canonical event type from span attributes and status."""
     attrs = span.attributes or {}
-    span_kind = attrs.get(OpenInferenceAttributes.SPAN_KIND, "")
-    op_name = attrs.get(GenAIAttributes.OPERATION_NAME, "")
-    tool_name = attrs.get(GenAIAttributes.TOOL_NAME, "")
+    span_kind = _attribute_to_str(attrs.get(OpenInferenceAttributes.SPAN_KIND))
+    op_name = _attribute_to_str(attrs.get(GenAIAttributes.OPERATION_NAME))
+    tool_name = _attribute_to_str(attrs.get(GenAIAttributes.TOOL_NAME))
     error = _is_error(span)
 
     if span_kind == "TOOL" or tool_name:
@@ -82,16 +90,16 @@ class EventNormalizerProcessor(SpanProcessor):
             cost_data = get_span_cost_data(span)
             tenant_id = (
                 get_span_tenant(span)
-                or attrs.get(LumenAIAttributes.TENANT_ID, "")
+                or _attribute_to_str(attrs.get(LumenAIAttributes.TENANT_ID))
                 or "default"
             )
             error = _is_error(span)
 
-            event = {
+            event: LumenAIEvent = {
                 "id": str(uuid.uuid4()),
                 "tenant_id": tenant_id,
-                "session_id": attrs.get(LumenAIAttributes.SESSION_ID, ""),
-                "agent_id": attrs.get(LumenAIAttributes.AGENT_ID, ""),
+                "session_id": _attribute_to_str(attrs.get(LumenAIAttributes.SESSION_ID)),
+                "agent_id": _attribute_to_str(attrs.get(LumenAIAttributes.AGENT_ID)),
                 "trace_id": format(span.context.trace_id, "032x") if span.context else "",
                 "span_id": format(span.context.span_id, "016x") if span.context else "",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -106,9 +114,9 @@ class EventNormalizerProcessor(SpanProcessor):
                 "tokens_out": cost_data.get("output_tokens", 0),
                 "cache_read_tokens": cost_data.get("cache_read_tokens", 0),
                 # Model / tool metadata
-                "model": cost_data.get("model") or attrs.get(GenAIAttributes.REQUEST_MODEL, ""),
-                "tool_name": attrs.get(GenAIAttributes.TOOL_NAME, ""),
-                "span_kind": attrs.get(OpenInferenceAttributes.SPAN_KIND, ""),
+                "model": cost_data.get("model") or _attribute_to_str(attrs.get(GenAIAttributes.REQUEST_MODEL)),
+                "tool_name": _attribute_to_str(attrs.get(GenAIAttributes.TOOL_NAME)),
+                "span_kind": _attribute_to_str(attrs.get(OpenInferenceAttributes.SPAN_KIND)),
             }
 
             if self._exporter:

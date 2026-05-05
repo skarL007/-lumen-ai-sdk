@@ -14,11 +14,12 @@ import time
 
 import pytest
 
-# Skip in CI — benchmark thresholds are calibrated for local dev machines.
-# MagicMock adds ~200-1400µs overhead depending on runner hardware.
+# Benchmarks are opt-in because thresholds vary with host load, Docker,
+# antivirus, and runner hardware. Normal correctness gates should not fail
+# because the machine is busy.
 pytestmark = pytest.mark.skipif(
-    os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true",
-    reason="Benchmarks skipped in CI — run locally with: pytest tests/test_benchmark.py -v",
+    os.environ.get("LUMEN_RUN_BENCHMARKS") != "1",
+    reason="Benchmarks are opt-in: set LUMEN_RUN_BENCHMARKS=1 to run them",
 )
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "lumen-ai-core", "src"))

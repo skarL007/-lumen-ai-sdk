@@ -5,6 +5,33 @@ Each event type maps to a specific point in an agent's lifecycle.
 """
 
 
+from typing import TypedDict
+
+
+class LumenAIEvent(TypedDict):
+    """Normalized metadata-only event emitted by LumenAI exporters."""
+
+    id: str
+    tenant_id: str
+    session_id: str
+    agent_id: str
+    trace_id: str
+    span_id: str
+    timestamp: str
+    event_type: str
+    severity: str
+    message: str
+    duration_ms: int
+    is_error: bool
+    cost_usd: float
+    tokens_in: int
+    tokens_out: int
+    cache_read_tokens: int
+    model: str
+    tool_name: str
+    span_kind: str
+
+
 class EventType:
     """All canonical event types emitted by LumenAI Master instrumentors."""
 

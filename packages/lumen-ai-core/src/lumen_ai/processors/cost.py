@@ -31,6 +31,29 @@ def _span_key(span: ReadableSpan) -> str:
     return ""
 
 
+def _attribute_to_str(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (str, int, float, bool)):
+        return str(value)
+    return ""
+
+
+def _attribute_to_int(value: object) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
+
+
 def _store_cost(key: str, data: dict) -> None:
     with _map_lock:
         if key in _span_cost_map:
@@ -83,11 +106,10 @@ class CostComputingSpanProcessor(SpanProcessor):
         try:
             attrs = span.attributes or {}
 
-            model: str = (
-                attrs.get(GenAIAttributes.REQUEST_MODEL)
-                or attrs.get(GenAIAttributes.RESPONSE_MODEL)
-                or attrs.get(OpenInferenceAttributes.MODEL_NAME)
-                or ""
+            model = (
+                _attribute_to_str(attrs.get(GenAIAttributes.REQUEST_MODEL))
+                or _attribute_to_str(attrs.get(GenAIAttributes.RESPONSE_MODEL))
+                or _attribute_to_str(attrs.get(OpenInferenceAttributes.MODEL_NAME))
             )
             if not model:
                 return
@@ -102,9 +124,9 @@ class CostComputingSpanProcessor(SpanProcessor):
                 logger.debug("No pricing found for model '%s' — cost skipped", model)
                 return
 
-            input_tokens = int(attrs.get(GenAIAttributes.USAGE_INPUT_TOKENS, 0) or 0)
-            output_tokens = int(attrs.get(GenAIAttributes.USAGE_OUTPUT_TOKENS, 0) or 0)
-            cache_read = int(attrs.get(GenAIAttributes.USAGE_CACHE_READ, 0) or 0)
+            input_tokens = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_INPUT_TOKENS))
+            output_tokens = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_OUTPUT_TOKENS))
+            cache_read = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_CACHE_READ))
 
             if input_tokens == 0 and output_tokens == 0:
                 return

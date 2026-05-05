@@ -10,6 +10,8 @@ import logging
 import threading
 from typing import Dict, List, Optional, Tuple
 
+from lumen_ai.schema.event_types import LumenAIEvent
+
 logger = logging.getLogger(__name__)
 
 class BasePricingProvider(abc.ABC):
@@ -28,7 +30,7 @@ class BaseLumenAIExporter(abc.ABC):
     Implement this to send events to Redis, ClickHouse, Postgres, etc.
     """
     @abc.abstractmethod
-    def export(self, tenant_id: str, event: dict) -> None:
+    def export(self, tenant_id: str, event: LumenAIEvent) -> None:
         """Send the event to the target sink."""
         pass
 
@@ -93,7 +95,7 @@ class RedisExporter(BaseLumenAIExporter):
         self._redis = _redis.Redis.from_url(redis_url, decode_responses=True)
         self._stream_prefix = stream_prefix
 
-    def export(self, tenant_id: str, event: dict) -> None:
+    def export(self, tenant_id: str, event: LumenAIEvent) -> None:
         stream_key = f"{self._stream_prefix}:{tenant_id}"
         try:
             self._redis.xadd(
@@ -139,10 +141,10 @@ class AsyncRedisExporter(BaseLumenAIExporter):
         self._stream_prefix = stream_prefix
         self._max_buffer = max_buffer
         self._maxlen = maxlen
-        self._buffer: List[Tuple[str, dict]] = []
+        self._buffer: List[Tuple[str, LumenAIEvent]] = []
         self._lock = threading.Lock()
 
-    def export(self, tenant_id: str, event: dict) -> None:
+    def export(self, tenant_id: str, event: LumenAIEvent) -> None:
         """Buffer event for async flush (called synchronously from on_end)."""
         with self._lock:
             self._buffer.append((tenant_id, event))
@@ -169,13 +171,13 @@ class AsyncRedisExporter(BaseLumenAIExporter):
         if events:
             await self._write_batch(events)
 
-    def _drain_buffer(self) -> List[Tuple[str, dict]]:
+    def _drain_buffer(self) -> List[Tuple[str, LumenAIEvent]]:
         with self._lock:
             events = list(self._buffer)
             self._buffer.clear()
             return events
 
-    async def _write_batch(self, events: List[Tuple[str, dict]]) -> None:
+    async def _write_batch(self, events: List[Tuple[str, LumenAIEvent]]) -> None:
         pipe = self._redis.pipeline()
         for tenant_id, event in events:
             stream_key = f"{self._stream_prefix}:{tenant_id}"

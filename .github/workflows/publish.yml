@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
-      id-token: write  # Required for trusted publishing (OIDC)
+      id-token: write
 
     strategy:
       fail-fast: false
@@ -34,12 +34,30 @@ jobs:
           python-version: "3.11"
 
       - name: Install build tools
-        run: pip install hatchling build
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
 
       - name: Build ${{ matrix.package }}
+        if: >-
+          ${{
+            github.event_name == 'release' ||
+            github.event.inputs.package == 'all' ||
+            (github.event.inputs.package == 'core' && matrix.package == 'lumen-ai-core') ||
+            (github.event.inputs.package == 'celery' && matrix.package == 'lumen-ai-celery') ||
+            (github.event.inputs.package == 'openlit' && matrix.package == 'lumen-ai-openlit')
+          }}
         run: python -m build packages/${{ matrix.package }}
 
       - name: Publish ${{ matrix.package }} to PyPI
+        if: >-
+          ${{
+            github.event_name == 'release' ||
+            github.event.inputs.package == 'all' ||
+            (github.event.inputs.package == 'core' && matrix.package == 'lumen-ai-core') ||
+            (github.event.inputs.package == 'celery' && matrix.package == 'lumen-ai-celery') ||
+            (github.event.inputs.package == 'openlit' && matrix.package == 'lumen-ai-openlit')
+          }}
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: packages/${{ matrix.package }}/dist/

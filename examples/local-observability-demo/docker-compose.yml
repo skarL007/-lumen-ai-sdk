@@ -1,0 +1,14 @@
+services:
+  redis:
+    image: redis:7-alpine
+
+  app:
+    build:
+      context: ../..
+      dockerfile: examples/local-observability-demo/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis

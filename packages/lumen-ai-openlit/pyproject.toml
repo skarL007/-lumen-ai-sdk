@@ -1,6 +1,6 @@
 [project]
 name = "lumen-ai-openlit"
-version = "0.1.1"
+version = "0.1.2"
 description = "LumenAI OpenLIT Bridge — zero-code LLM auto-instrumentation"
 requires-python = ">=3.11"
 readme = "README.md"
@@ -17,8 +17,8 @@ classifiers = [
     "Topic :: System :: Monitoring",
 ]
 dependencies = [
-    "lumen-ai-core>=0.1.0",
-    "openlit>=0.15.0",
+    "lumen-ai-core>=0.1.2",
+    "openlit>=1.0",
 ]
 
 [project.urls]

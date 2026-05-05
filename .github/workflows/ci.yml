@@ -17,16 +17,17 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install linters
-        run: pip install ruff mypy
+      - name: Install lint dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e packages/lumen-ai-core
+          pip install ruff mypy
 
       - name: Ruff check
-        run: ruff check packages/lumen-ai-core/src/ --select E,F,W,I --ignore E501
+        run: ruff check packages/lumen-ai-core/src packages/lumen-ai-celery/src packages/lumen-ai-openlit/src --select E,F,W,I --ignore E501
 
       - name: Mypy type check
-        run: |
-          pip install -e packages/lumen-ai-core
-          mypy packages/lumen-ai-core/src/lumen_ai/ --ignore-missing-imports --no-error-summary || true
+        run: mypy packages/lumen-ai-core/src/lumen_ai/ --ignore-missing-imports --no-error-summary
 
   test:
     runs-on: ubuntu-latest
@@ -50,16 +51,19 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install core package
-        run: pip install -e packages/lumen-ai-core
+      - name: Install packages and test tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e packages/lumen-ai-core
+          pip install -e packages/lumen-ai-celery
+          pip install -e packages/lumen-ai-openlit
+          pip install pytest pytest-cov
 
-      - name: Verify import
-        run: python -c "from lumen_ai import LumenAI, BaseInstrumentor; print('Import OK')"
+      - name: Verify public imports
+        run: python -c "from lumen_ai import LumenAI, BaseInstrumentor, RedisExporter, AsyncRedisExporter, lumen_tenant; from lumen_ai_celery import CeleryInstrumentor; from lumen_ai_openlit import OpenLITBridge; print('Import OK')"
 
       - name: Run tests with coverage
-        run: |
-          pip install pytest pytest-cov
-          pytest tests/ -v --cov=lumen_ai --cov-report=xml --cov-report=term-missing
+        run: pytest tests/ -v --cov=lumen_ai --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage to Codecov
         if: github.event_name == 'push'
@@ -70,13 +74,47 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: Install all packages
-        run: |
-          pip install -e packages/lumen-ai-celery
-          pip install -e packages/lumen-ai-openlit
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Build wheel artifacts
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build wheels
         run: |
+          python -m pip install --upgrade pip
           pip install build
-          python -m build packages/lumen-ai-core --wheel --outdir /tmp/dist
-          ls /tmp/dist
+          mkdir -p /tmp/lumen-dist
+          python -m build packages/lumen-ai-core --wheel --outdir /tmp/lumen-dist
+          python -m build packages/lumen-ai-celery --wheel --outdir /tmp/lumen-dist
+          python -m build packages/lumen-ai-openlit --wheel --outdir /tmp/lumen-dist
+          ls -la /tmp/lumen-dist
+
+      - name: Clean install wheels and verify imports
+        run: |
+          python -m venv /tmp/lumen-clean
+          /tmp/lumen-clean/bin/python -m pip install --upgrade pip
+          /tmp/lumen-clean/bin/python -m pip install /tmp/lumen-dist/*.whl
+          /tmp/lumen-clean/bin/python -c "import lumen_ai; import lumen_ai.models; from lumen_ai import LumenAI, lumen_tenant; from lumen_ai_celery import CeleryInstrumentor; from lumen_ai_openlit import OpenLITBridge; print('Clean install OK')"
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e packages/lumen-ai-core
+          pip install pip-audit
+          pip-audit

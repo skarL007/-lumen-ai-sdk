@@ -43,8 +43,9 @@ class OpenLITBridge(BaseInstrumentor):
             return
 
         try:
-            import openlit
             import inspect
+
+            import openlit
 
             # Build init kwargs defensively — openlit.init() API may vary by version
             init_kwargs: dict = {}

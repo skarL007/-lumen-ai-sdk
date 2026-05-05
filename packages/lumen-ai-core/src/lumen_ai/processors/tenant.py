@@ -128,6 +128,14 @@ def _span_key(span: ReadableSpan) -> str:
     return ""
 
 
+def _attribute_to_str(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (str, int, float, bool)):
+        return str(value).strip()
+    return ""
+
+
 def _store_tenant(key: str, tenant: str) -> None:
     """Thread-safe write with LRU eviction."""
     with _map_lock:
@@ -176,7 +184,7 @@ class TenantSpanProcessor(SpanProcessor):
             attrs = span.attributes or {}
             tenant = (
                 get_tenant_id()
-                or attrs.get(LumenAIAttributes.TENANT_ID, "")
+                or _attribute_to_str(attrs.get(LumenAIAttributes.TENANT_ID, ""))
                 or self._default_tenant
             )
 

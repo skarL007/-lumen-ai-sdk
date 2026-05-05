@@ -7,16 +7,15 @@ to create OTel spans without modifying any existing task code.
 import logging
 import time
 
-from opentelemetry import trace
-from opentelemetry.trace import StatusCode
-
 from lumen_ai import BaseInstrumentor
 from lumen_ai.schema.semconv import (
     GenAIAttributes,
-    OpenInferenceAttributes,
     LumenAIAttributes,
+    OpenInferenceAttributes,
     SpanKind,
 )
+from opentelemetry import trace
+from opentelemetry.trace import StatusCode
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ class CeleryInstrumentor(BaseInstrumentor):
         if self._connected:
             return
 
-        from celery.signals import task_prerun, task_postrun, task_failure
+        from celery.signals import task_failure, task_postrun, task_prerun
 
         self._tracer = trace.get_tracer("LumenAI-master-celery")
 
@@ -60,7 +59,7 @@ class CeleryInstrumentor(BaseInstrumentor):
         if not self._connected:
             return
 
-        from celery.signals import task_prerun, task_postrun, task_failure
+        from celery.signals import task_failure, task_postrun, task_prerun
 
         task_prerun.disconnect(self._on_task_prerun)
         task_postrun.disconnect(self._on_task_postrun)

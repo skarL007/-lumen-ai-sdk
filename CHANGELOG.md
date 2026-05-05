@@ -7,6 +7,30 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.1.2] - 2026-05-05
+
+### Fixed
+- Added missing `sqlalchemy>=2.0.0` dependency for the public `lumen_ai.models` module.
+- Made the core mypy gate actionable by fixing OTel attribute casts instead of masking errors.
+- Aligned `lumen-ai-openlit` package dependency with the bridge requirement: `openlit>=1.0`.
+- Updated publish workflow so manual package selection respects `core`, `celery`, `openlit`, or `all`.
+
+### Added
+- Top-level exports for tenant helpers, Redis exporters, and `LumenAIEvent`.
+- `LumenAIEvent` typed event contract.
+- Privacy regression test proving prompt, completion, tool arguments, and raw bodies are not exported.
+- OpenLIT mock test and Celery signal-handler unit test.
+- Clean wheel install CI job and non-blocking `pip-audit` job.
+- Local no-key observability demo under `examples/local-observability-demo`.
+- Opt-in benchmark execution via `LUMEN_RUN_BENCHMARKS=1`.
+
+### Changed
+- Replaced duplicated package READMEs with package-specific docs.
+- Rewrote the root README to separate working alpha behavior, local demo, public API, and roadmap.
+- Renamed the old static visual demo to `lumen-simulation.html` to avoid presenting it as a real SDK integration demo.
+
+---
+
 ## [0.1.1] — 2026-04-05
 
 ### Fixed
