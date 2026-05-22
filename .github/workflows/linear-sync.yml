@@ -1,0 +1,13 @@
+name: Linear Sync
+
+on:
+  push:
+    branches-ignore: [main, master, Noctra]
+  pull_request:
+    types: [opened, ready_for_review, closed]
+
+jobs:
+  sync:
+    uses: skarL007/skar-ops/.github/workflows/linear-sync-reusable.yml@main
+    secrets:
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
