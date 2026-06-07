@@ -14,7 +14,12 @@ from typing import Optional
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 
 from lumen_ai.providers import BasePricingProvider
-from lumen_ai.schema.semconv import GenAIAttributes, OpenInferenceAttributes
+from lumen_ai.schema.semconv import (
+    GenAIAttributes,
+    OpenInferenceAttributes,
+    compute_cost_usd,
+    provider_includes_cache_in_input,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -94,13 +99,8 @@ class CostComputingSpanProcessor(SpanProcessor):
         output_tokens: int,
         cache_read: int,
     ) -> float:
-        # Use .get() with default 0.0 — pricing dicts may omit cache_read
-        cost = (
-            (input_tokens * pricing.get("input", 0.0) / 1_000_000)
-            + (output_tokens * pricing.get("output", 0.0) / 1_000_000)
-            + (cache_read * pricing.get("cache_read", 0.0) / 1_000_000)
-        )
-        return round(cost, 8)
+        # Single source of truth for the cost formula (see semconv.compute_cost_usd).
+        return compute_cost_usd(pricing, input_tokens, output_tokens, cache_read)
 
     def on_end(self, span: ReadableSpan) -> None:
         try:
@@ -128,10 +128,21 @@ class CostComputingSpanProcessor(SpanProcessor):
             output_tokens = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_OUTPUT_TOKENS))
             cache_read = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_CACHE_READ))
 
-            if input_tokens == 0 and output_tokens == 0:
+            # Cache-only spans (input==output==0, cache_read>0) still have real cost.
+            if input_tokens == 0 and output_tokens == 0 and cache_read == 0:
                 return
 
-            cost_usd = self._compute_cost(pricing, input_tokens, output_tokens, cache_read)
+            # Some emitters (OpenAI/Azure) fold cached tokens into input_tokens; bill
+            # only the non-cached remainder at input rate so cache isn't charged twice.
+            provider = (
+                _attribute_to_str(attrs.get(GenAIAttributes.PROVIDER_NAME))
+                or _attribute_to_str(attrs.get(GenAIAttributes.SYSTEM))
+            )
+            billable_input = input_tokens
+            if cache_read and provider_includes_cache_in_input(provider):
+                billable_input = max(input_tokens - cache_read, 0)
+
+            cost_usd = self._compute_cost(pricing, billable_input, output_tokens, cache_read)
 
             key = _span_key(span)
             if not key:

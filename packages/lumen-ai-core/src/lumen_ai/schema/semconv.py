@@ -102,22 +102,76 @@ PRICING_TABLE: dict[str, dict[str, float]] = {
 }
 
 
+def match_model_pricing(
+    table: dict[str, dict[str, float]], model: str
+) -> dict[str, float] | None:
+    """
+    Resolve a model id to its pricing entry.
+
+    Resolution order:
+      1. Exact key match.
+      2. Longest boundary-anchored match — the longest table key ``k`` such that
+         ``model`` starts with ``k`` followed by a separator (``-`` / ``/`` / ``:``)
+         or ends with ``/k``. Longest-match makes ``gpt-4o-mini-2024-07-18``
+         resolve to ``gpt-4o-mini`` rather than the shorter, pricier ``gpt-4o``.
+
+    Returns ``None`` for unknown models — never a zero-price dict. A plain
+    substring is deliberately NOT a match (``"notaclaude-..."`` must not hit
+    ``claude-...``); a separator boundary is required.
+    """
+    if not model:
+        return None
+    exact = table.get(model)
+    if exact is not None:
+        return exact
+    best_key: str | None = None
+    for key in table:
+        if (
+            model.startswith(key + "-")
+            or model.startswith(key + "/")
+            or model.startswith(key + ":")
+            or model.endswith("/" + key)
+        ) and (best_key is None or len(key) > len(best_key)):
+            best_key = key
+    return table[best_key] if best_key is not None else None
+
+
+def compute_cost_usd(
+    pricing: dict[str, float],
+    input_tokens: int,
+    output_tokens: int,
+    cache_read_tokens: int = 0,
+) -> float:
+    """
+    USD cost from a pricing dict and token counts (rates are per 1M tokens).
+
+    Uses ``.get(..., 0.0)`` for every term so partial pricing dicts — e.g.
+    community JSON that omits ``cache_read`` — never raise ``KeyError``.
+    """
+    cost = (
+        input_tokens * pricing.get("input", 0.0) / 1_000_000
+        + output_tokens * pricing.get("output", 0.0) / 1_000_000
+        + cache_read_tokens * pricing.get("cache_read", 0.0) / 1_000_000
+    )
+    return round(cost, 8)
+
+
 def compute_cost(model: str, input_tokens: int, output_tokens: int,
                  cache_read_tokens: int = 0) -> float:
     """Compute USD cost for a span given model and token counts."""
-    pricing = PRICING_TABLE.get(model)
-    if not pricing:
-        # Try partial match (e.g. "anthropic/claude-sonnet-4-6" → "claude-sonnet-4-6")
-        for key, val in PRICING_TABLE.items():
-            if key in model or model.endswith(key):
-                pricing = val
-                break
+    pricing = match_model_pricing(PRICING_TABLE, model)
     if not pricing:
         return 0.0
+    return compute_cost_usd(pricing, input_tokens, output_tokens, cache_read_tokens)
 
-    cost = (
-        (input_tokens * pricing["input"] / 1_000_000)
-        + (output_tokens * pricing["output"] / 1_000_000)
-        + (cache_read_tokens * pricing["cache_read"] / 1_000_000)
-    )
-    return round(cost, 8)
+
+# Providers whose gen_ai.usage.input_tokens INCLUDES the cached tokens. For these,
+# cache_read must be subtracted from input before billing or the cached tokens are
+# charged twice (once at input rate, once at cache rate). OpenAI's prompt_tokens
+# includes cached_tokens; Anthropic reports cache reads as a separate field.
+CACHE_INCLUSIVE_PROVIDERS: tuple[str, ...] = ("openai", "azure")
+
+
+def provider_includes_cache_in_input(provider: str) -> bool:
+    """True if the emitter folds cached tokens into input_tokens (OpenAI / Azure)."""
+    return (provider or "").lower().startswith(CACHE_INCLUSIVE_PROVIDERS)
