@@ -5,11 +5,12 @@ Enables market-ready flexibility by decoupling core logic from
 specific databases (Redis) and static pricing tables.
 """
 import abc
+import asyncio
 import json
 import logging
 import threading
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from lumen_ai.schema.event_types import LumenAIEvent
 from lumen_ai.schema.semconv import match_model_pricing
@@ -127,18 +128,23 @@ class AsyncRedisExporter(BaseLumenAIExporter):
     """
     Non-blocking Redis Streams exporter.
 
-    Buffers events in memory and flushes to Redis in batches.
-    Use ``aflush()`` from your async event loop for true non-blocking writes,
-    or let the buffer auto-flush when it reaches ``max_buffer`` size.
+    ``export()`` (called synchronously from ``on_end`` on the request/worker
+    thread) only appends to an in-memory buffer and, when the buffer fills,
+    schedules a batch flush on a dedicated background event loop. It never
+    blocks on network I/O and never touches the caller's event loop. The
+    ``redis.asyncio`` client is created on and used only by that one loop —
+    these clients are bound to the loop that first drives them, so sharing one
+    across throwaway ``asyncio.run()`` loops silently drops writes.
 
     Usage::
 
-        LumenAI.init(
-            redis_url="redis://localhost:6379/0",
-            exporter=AsyncRedisExporter("redis://localhost:6379/0"),
-        )
+        # Pass it as ``exporter=`` — do NOT also pass ``redis_url`` (init()
+        # rejects that combination).
+        LumenAI.init(exporter=AsyncRedisExporter("redis://localhost:6379/0"))
+        ...
+        LumenAI.shutdown()          # drains the buffer and closes the client
 
-        # In your shutdown handler:
+        # Or, from your own async shutdown handler:
         await exporter.aflush()
     """
 
@@ -149,67 +155,105 @@ class AsyncRedisExporter(BaseLumenAIExporter):
         max_buffer: int = 100,
         maxlen: int = 10000,
     ):
-        import redis.asyncio as aioredis
-        self._redis = aioredis.from_url(redis_url, decode_responses=True)
+        self._redis_url = redis_url
         self._stream_prefix = stream_prefix
         self._max_buffer = max_buffer
         self._maxlen = maxlen
         self._buffer: List[Tuple[str, LumenAIEvent]] = []
         self._lock = threading.Lock()
+        self._redis: Optional[Any] = None
+        self._closed = False
+        # Dedicated event loop in a daemon thread; all Redis I/O runs here so the
+        # loop-bound client is never shared across loops.
+        self._loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(
+            target=self._run_loop, name="lumenai-async-redis", daemon=True
+        )
+        self._thread.start()
+
+    def _run_loop(self) -> None:
+        asyncio.set_event_loop(self._loop)
+        self._loop.run_forever()
+
+    async def _get_client(self) -> Any:
+        if self._redis is None:
+            import redis.asyncio as aioredis
+            self._redis = aioredis.from_url(self._redis_url, decode_responses=True)
+        return self._redis
 
     def export(self, tenant_id: str, event: LumenAIEvent) -> None:
-        """Buffer event for async flush (called synchronously from on_end)."""
+        """Buffer an event; schedule a background flush when the buffer is full."""
+        to_flush: Optional[List[Tuple[str, LumenAIEvent]]] = None
         with self._lock:
+            if self._closed:
+                return
             self._buffer.append((tenant_id, event))
             if len(self._buffer) >= self._max_buffer:
-                self._flush_sync()
+                to_flush = self._buffer
+                self._buffer = []
+        # Schedule OUTSIDE the lock — the flush path must never re-acquire it.
+        if to_flush:
+            self._schedule(self._write_batch(to_flush))
 
-    def _flush_sync(self) -> None:
-        """Synchronous fallback flush using a new event loop."""
-        import asyncio
-        events = self._drain_buffer()
-        if not events:
-            return
+    def _schedule(self, coro: Any) -> None:
+        """Submit a coroutine to the background loop without blocking."""
         try:
-            asyncio.get_running_loop()
-            # Already in async context — schedule coroutine
-            asyncio.ensure_future(self._write_batch(events))
+            asyncio.run_coroutine_threadsafe(coro, self._loop)
         except RuntimeError:
-            # No running loop — create one
-            asyncio.run(self._write_batch(events))
+            coro.close()  # loop already stopped (shutting down) — drop quietly
 
-    async def aflush(self) -> None:
-        """Async flush — call from your event loop (e.g. lifespan shutdown)."""
-        events = self._drain_buffer()
-        if events:
-            await self._write_batch(events)
-
-    def _drain_buffer(self) -> List[Tuple[str, LumenAIEvent]]:
+    def _drain(self) -> List[Tuple[str, LumenAIEvent]]:
         with self._lock:
-            events = list(self._buffer)
-            self._buffer.clear()
+            events = self._buffer
+            self._buffer = []
             return events
 
+    async def aflush(self) -> None:
+        """Async flush — schedules the flush on the background loop and awaits it."""
+        events = self._drain()
+        if not events:
+            return
+        fut = asyncio.run_coroutine_threadsafe(self._write_batch(events), self._loop)
+        await asyncio.wrap_future(fut)
+
     async def _write_batch(self, events: List[Tuple[str, LumenAIEvent]]) -> None:
-        pipe = self._redis.pipeline()
-        for tenant_id, event in events:
-            stream_key = f"{self._stream_prefix}:{tenant_id}"
-            pipe.xadd(
-                stream_key,
-                {"data": json.dumps(event, default=str)},
-                maxlen=self._maxlen,
-            )
         try:
+            client = await self._get_client()
+            pipe = client.pipeline()
+            for tenant_id, event in events:
+                stream_key = f"{self._stream_prefix}:{tenant_id}"
+                pipe.xadd(
+                    stream_key,
+                    {"data": json.dumps(event, default=str)},
+                    maxlen=self._maxlen,
+                )
             await pipe.execute()
         except Exception as e:
             logger.warning("AsyncRedisExporter batch flush failed: %s", e)
 
     def shutdown(self) -> None:
-        """Flush remaining buffer and close connection."""
-        self._flush_sync()
-        import asyncio
-        try:
-            asyncio.get_running_loop()
-            asyncio.ensure_future(self._redis.aclose())
-        except RuntimeError:
-            asyncio.run(self._redis.aclose())
+        """Flush remaining events, close the client, stop the loop (blocking)."""
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            events = self._buffer
+            self._buffer = []
+        if not self._loop.is_closed():
+            try:
+                fut = asyncio.run_coroutine_threadsafe(
+                    self._shutdown_coro(events), self._loop
+                )
+                fut.result(timeout=5)
+            except Exception as e:
+                logger.debug("AsyncRedisExporter shutdown flush failed: %s", e)
+            self._loop.call_soon_threadsafe(self._loop.stop)
+        self._thread.join(timeout=5)
+        if not self._thread.is_alive() and not self._loop.is_closed():
+            self._loop.close()
+
+    async def _shutdown_coro(self, events: List[Tuple[str, LumenAIEvent]]) -> None:
+        if events:
+            await self._write_batch(events)
+        if self._redis is not None:
+            await self._redis.aclose()
