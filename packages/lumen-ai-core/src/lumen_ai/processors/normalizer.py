@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
+from opentelemetry.trace import StatusCode
 
 from lumen_ai.processors.cost import pop_span_cost_data
 from lumen_ai.processors.tenant import pop_span_tenant
@@ -38,10 +39,13 @@ def _is_error(span: ReadableSpan) -> bool:
     status = span.status
     if status is None:
         return False
-    # OTel StatusCode.ERROR = 2
-    return getattr(status, "status_code", None) == 2 or (
-        hasattr(status, "is_ok") and not status.is_ok
-    )
+    code = getattr(status, "status_code", None)
+    # StatusCode.ERROR is an enum member (value 2); compare against the member,
+    # tolerating int-like statuses. Then fall back to an explicit is_ok is False
+    # so a truthy mock/shim attribute is never read as "ok".
+    if code is StatusCode.ERROR or getattr(code, "value", code) == 2:
+        return True
+    return getattr(status, "is_ok", None) is False
 
 
 def _span_to_event_type(span: ReadableSpan) -> str:
@@ -54,7 +58,13 @@ def _span_to_event_type(span: ReadableSpan) -> str:
 
     if span_kind == "TOOL" or tool_name:
         return EventType.TOOL_CALL_FAILED if error else EventType.TOOL_CALL_COMPLETED
-    if span_kind == "LLM" or op_name in ("chat", "completion", "embedding"):
+    if span_kind == "EMBEDDING" or op_name == "embedding":
+        return EventType.EMBEDDING_FAILED if error else EventType.EMBEDDING_COMPLETED
+    if span_kind == "RETRIEVER":
+        return EventType.RETRIEVAL_FAILED if error else EventType.RETRIEVAL_COMPLETED
+    if span_kind == "RERANKER":
+        return EventType.RERANK_FAILED if error else EventType.RERANK_COMPLETED
+    if span_kind == "LLM" or op_name in ("chat", "completion"):
         return EventType.LLM_CALL_FAILED if error else EventType.LLM_CALL_COMPLETED
     if span_kind == "AGENT":
         return EventType.AGENT_FAILED if error else EventType.AGENT_COMPLETED
