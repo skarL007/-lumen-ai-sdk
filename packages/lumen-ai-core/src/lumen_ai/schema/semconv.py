@@ -163,3 +163,15 @@ def compute_cost(model: str, input_tokens: int, output_tokens: int,
     if not pricing:
         return 0.0
     return compute_cost_usd(pricing, input_tokens, output_tokens, cache_read_tokens)
+
+
+# Providers whose gen_ai.usage.input_tokens INCLUDES the cached tokens. For these,
+# cache_read must be subtracted from input before billing or the cached tokens are
+# charged twice (once at input rate, once at cache rate). OpenAI's prompt_tokens
+# includes cached_tokens; Anthropic reports cache reads as a separate field.
+CACHE_INCLUSIVE_PROVIDERS: tuple[str, ...] = ("openai", "azure")
+
+
+def provider_includes_cache_in_input(provider: str) -> bool:
+    """True if the emitter folds cached tokens into input_tokens (OpenAI / Azure)."""
+    return (provider or "").lower().startswith(CACHE_INCLUSIVE_PROVIDERS)

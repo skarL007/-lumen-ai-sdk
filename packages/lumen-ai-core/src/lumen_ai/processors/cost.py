@@ -18,6 +18,7 @@ from lumen_ai.schema.semconv import (
     GenAIAttributes,
     OpenInferenceAttributes,
     compute_cost_usd,
+    provider_includes_cache_in_input,
 )
 
 logger = logging.getLogger(__name__)
@@ -127,10 +128,21 @@ class CostComputingSpanProcessor(SpanProcessor):
             output_tokens = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_OUTPUT_TOKENS))
             cache_read = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_CACHE_READ))
 
-            if input_tokens == 0 and output_tokens == 0:
+            # Cache-only spans (input==output==0, cache_read>0) still have real cost.
+            if input_tokens == 0 and output_tokens == 0 and cache_read == 0:
                 return
 
-            cost_usd = self._compute_cost(pricing, input_tokens, output_tokens, cache_read)
+            # Some emitters (OpenAI/Azure) fold cached tokens into input_tokens; bill
+            # only the non-cached remainder at input rate so cache isn't charged twice.
+            provider = (
+                _attribute_to_str(attrs.get(GenAIAttributes.PROVIDER_NAME))
+                or _attribute_to_str(attrs.get(GenAIAttributes.SYSTEM))
+            )
+            billable_input = input_tokens
+            if cache_read and provider_includes_cache_in_input(provider):
+                billable_input = max(input_tokens - cache_read, 0)
+
+            cost_usd = self._compute_cost(pricing, billable_input, output_tokens, cache_read)
 
             key = _span_key(span)
             if not key:
