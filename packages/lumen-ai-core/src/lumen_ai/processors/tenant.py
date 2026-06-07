@@ -116,6 +116,20 @@ def get_span_tenant(span: ReadableSpan) -> str:
         return _span_tenant_map.get(key, "")
 
 
+def pop_span_tenant(span: ReadableSpan) -> str:
+    """
+    Retrieve and REMOVE the tenant recorded for a span.
+
+    The downstream normalizer calls this so each span's side-map entry is freed
+    once consumed (bounds memory and prevents a later id-reuse stale read).
+    """
+    key = _span_key(span)
+    if not key:
+        return ""
+    with _map_lock:
+        return _span_tenant_map.pop(key, "")
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -182,9 +196,14 @@ class TenantSpanProcessor(SpanProcessor):
         """Persist final tenant_id to side-dict for downstream processors."""
         try:
             attrs = span.attributes or {}
+            # The tenant stamped on the span at on_start (from the start context)
+            # is authoritative; the live ContextVar is only a fallback for spans
+            # that were never stamped. Reading the ContextVar first would let a
+            # span that ENDS in another tenant's context be re-attributed to it
+            # (cross-tenant cost/metadata leak — see SECURITY.md).
             tenant = (
-                get_tenant_id()
-                or _attribute_to_str(attrs.get(LumenAIAttributes.TENANT_ID, ""))
+                _attribute_to_str(attrs.get(LumenAIAttributes.TENANT_ID, ""))
+                or get_tenant_id()
                 or self._default_tenant
             )
 

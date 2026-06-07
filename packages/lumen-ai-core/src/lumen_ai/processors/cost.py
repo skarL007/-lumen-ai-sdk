@@ -78,6 +78,20 @@ def get_span_cost_data(span: ReadableSpan) -> dict:
         return dict(_span_cost_map.get(key, {}))
 
 
+def pop_span_cost_data(span: ReadableSpan) -> dict:
+    """
+    Retrieve and REMOVE computed cost data for a span.
+
+    The downstream normalizer calls this so each span's side-map entry is freed
+    once consumed (bounds memory and prevents a later id-reuse stale read).
+    """
+    key = _span_key(span)
+    if not key:
+        return {}
+    with _map_lock:
+        return _span_cost_map.pop(key, {})
+
+
 class CostComputingSpanProcessor(SpanProcessor):
     """
     Enriches spans with USD cost based on token usage and model pricing.

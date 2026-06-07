@@ -12,8 +12,8 @@ from typing import Optional
 
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 
-from lumen_ai.processors.cost import get_span_cost_data
-from lumen_ai.processors.tenant import get_span_tenant
+from lumen_ai.processors.cost import pop_span_cost_data
+from lumen_ai.processors.tenant import pop_span_tenant
 from lumen_ai.providers import BaseLumenAIExporter
 from lumen_ai.schema.event_types import EventType, LumenAIEvent, Severity
 from lumen_ai.schema.semconv import (
@@ -87,9 +87,11 @@ class EventNormalizerProcessor(SpanProcessor):
     def on_end(self, span: ReadableSpan) -> None:
         try:
             attrs = span.attributes or {}
-            cost_data = get_span_cost_data(span)
+            # Consume (pop) the upstream side-map entries so they are freed once
+            # this span's event is built — bounds memory and avoids id-reuse stale reads.
+            cost_data = pop_span_cost_data(span)
             tenant_id = (
-                get_span_tenant(span)
+                pop_span_tenant(span)
                 or _attribute_to_str(attrs.get(LumenAIAttributes.TENANT_ID))
                 or "default"
             )
