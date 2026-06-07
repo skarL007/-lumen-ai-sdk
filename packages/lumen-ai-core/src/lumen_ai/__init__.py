@@ -26,4 +26,4 @@ __all__ = [
     "lumen_tenant",
     "set_tenant_id",
 ]
-__version__ = "0.1.3"
+__version__ = "0.1.4"
