@@ -42,6 +42,7 @@ _span_tenant_map: OrderedDict[str, str] = OrderedDict()
 _map_lock = threading.Lock()
 _MAX_ENTRIES = 50_000
 _EVICT_BATCH = _MAX_ENTRIES // 10  # evict 10 % at a time
+_MAX_TENANT_ID_LEN = 128  # cap tenant_id length to bound Redis keyspace cardinality
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +65,15 @@ def set_tenant_id(tenant_id: str) -> Token:
     """
     if not isinstance(tenant_id, str):
         tenant_id = str(tenant_id)
-    return _current_tenant.set(tenant_id.strip())
+    # Drop control characters (newlines/tabs/null) that would corrupt Redis stream
+    # keys or log lines, then cap length to bound keyspace cardinality. Valid ids
+    # are untouched.
+    cleaned = "".join(ch for ch in tenant_id if ch.isprintable()).strip()
+    if len(cleaned) > _MAX_TENANT_ID_LEN:
+        cleaned = cleaned[:_MAX_TENANT_ID_LEN]
+    if cleaned != tenant_id.strip():
+        logger.warning("tenant_id sanitized (control chars removed or length capped)")
+    return _current_tenant.set(cleaned)
 
 
 # Keep old name as an alias for backwards compatibility
