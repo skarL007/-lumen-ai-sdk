@@ -14,6 +14,8 @@ import anthropic
 from fastapi import FastAPI, Request
 from lumen_ai import LumenAI
 from lumen_ai.processors.tenant import _current_tenant, set_tenant_id
+from lumen_ai.schema.semconv import GenAIAttributes, OpenInferenceAttributes, SpanKind
+from opentelemetry import trace
 
 
 @asynccontextmanager
@@ -41,10 +43,22 @@ async def tenant_middleware(request: Request, call_next):
 
 @app.post("/chat")
 async def chat(body: dict):
+    # Wrap the model call in a span so LumenAI's processors attribute the cost to
+    # the tenant set by the middleware. Without a span there is nothing to observe.
+    tracer = trace.get_tracer("lumen-ai.quickstart")
     client = anthropic.Anthropic()
-    msg = client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=256,
-        messages=[{"role": "user", "content": body["prompt"]}],
-    )
-    return {"reply": msg.content[0].text}
+    with tracer.start_as_current_span("anthropic.messages.create") as span:
+        span.set_attribute(OpenInferenceAttributes.SPAN_KIND, SpanKind.LLM)
+        span.set_attribute(GenAIAttributes.OPERATION_NAME, "chat")
+        span.set_attribute(GenAIAttributes.PROVIDER_NAME, "anthropic")
+        span.set_attribute(GenAIAttributes.REQUEST_MODEL, "claude-haiku-4-5")
+        msg = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=256,
+            messages=[{"role": "user", "content": body["prompt"]}],
+        )
+        usage = getattr(msg, "usage", None)
+        if usage is not None:
+            span.set_attribute(GenAIAttributes.USAGE_INPUT_TOKENS, getattr(usage, "input_tokens", 0))
+            span.set_attribute(GenAIAttributes.USAGE_OUTPUT_TOKENS, getattr(usage, "output_tokens", 0))
+        return {"reply": msg.content[0].text}
