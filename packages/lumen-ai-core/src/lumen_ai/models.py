@@ -54,7 +54,7 @@ class LumenAISession(Base):
 
     # Relationships
     agents = relationship("LumenAIAgent", back_populates="session", cascade="all, delete-orphan")
-    events = relationship("LumenAIEvent", back_populates="session", cascade="all, delete-orphan")
+    events = relationship("LumenAIEventRow", back_populates="session", cascade="all, delete-orphan")
     artifacts = relationship("LumenAIArtifact", back_populates="session", cascade="all, delete-orphan")
     approvals = relationship("LumenAIApproval", back_populates="session", cascade="all, delete-orphan")
 
@@ -90,7 +90,7 @@ class LumenAIAgent(Base):
     # Relationships
     session = relationship("LumenAISession", back_populates="agents")
     children = relationship("LumenAIAgent", backref="parent", remote_side=[id])
-    events = relationship("LumenAIEvent", back_populates="agent", cascade="all, delete-orphan")
+    events = relationship("LumenAIEventRow", back_populates="agent", cascade="all, delete-orphan")
     artifacts = relationship("LumenAIArtifact", back_populates="agent", cascade="all, delete-orphan")
 
     __table_args__ = (
@@ -99,7 +99,7 @@ class LumenAIAgent(Base):
     )
 
 
-class LumenAIEvent(Base):
+class LumenAIEventRow(Base):
     __tablename__ = "LumenAI_events"
 
     id = Column(String(36), primary_key=True, default=_uuid)

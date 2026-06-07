@@ -5,7 +5,7 @@ OpenLIT auto-instruments 60+ LLM providers (OpenAI, Anthropic, Ollama, etc.)
 generating OTel spans. This bridge normalizes those spans into LumenAI schema.
 
 Usage:
-    from LumenAI_openlit import OpenLITBridge
+    from lumen_ai_openlit import OpenLITBridge
     LumenAI.init(instrumentors=[OpenLITBridge()])
 """
 import logging
@@ -21,7 +21,7 @@ class OpenLITBridge(BaseInstrumentor):
 
     OpenLIT generates standard OTel spans with gen_ai.* attributes.
     This bridge simply initializes OpenLIT with the LumenAI TracerProvider,
-    so all LLM spans flow through LumenAI processors (Cost → Tenant → Normalizer).
+    so all LLM spans flow through LumenAI processors (Tenant → Cost → Normalizer).
     """
 
     def __init__(
