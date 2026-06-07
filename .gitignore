@@ -160,7 +160,11 @@ temp_renames.txt
 *.log
 
 # Internal / private files - never commit to public repo
-.claude/
+# Keep local Claude settings private, but share the dev agents + workflows.
+.claude/*
+!.claude/agents/
+!.claude/workflows/
+!.claude/README.md
 CLAUDE.md
 GEMINI.md
 discord_daily_bot.py
