@@ -6,6 +6,7 @@ Must run LAST in the processor chain, after TenantSpanProcessor and
 CostComputingSpanProcessor have written to their side-dicts.
 """
 import logging
+import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -24,6 +25,30 @@ from lumen_ai.schema.semconv import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Health counters — make otherwise-silent event drops observable.
+# ---------------------------------------------------------------------------
+_metrics_lock = threading.Lock()
+_metrics = {"events_exported": 0, "export_errors": 0, "events_dropped": 0}
+
+
+def _incr(key: str) -> None:
+    with _metrics_lock:
+        _metrics[key] += 1
+
+
+def get_metrics() -> dict:
+    """Snapshot of counters: events_exported / export_errors / events_dropped."""
+    with _metrics_lock:
+        return dict(_metrics)
+
+
+def reset_metrics() -> None:
+    """Zero the counters (useful in tests and between reporting windows)."""
+    with _metrics_lock:
+        for key in _metrics:
+            _metrics[key] = 0
 
 
 def _attribute_to_str(value: object) -> str:
@@ -134,7 +159,9 @@ class EventNormalizerProcessor(SpanProcessor):
             if self._exporter:
                 try:
                     self._exporter.export(tenant_id, event)
+                    _incr("events_exported")
                 except Exception:
+                    _incr("export_errors")
                     logger.warning("Exporter raised on event export", exc_info=True)
 
             logger.debug(
@@ -143,6 +170,7 @@ class EventNormalizerProcessor(SpanProcessor):
             )
 
         except Exception:
+            _incr("events_dropped")
             logger.warning("EventNormalizerProcessor.on_end failed silently", exc_info=True)
 
     def shutdown(self) -> None:
