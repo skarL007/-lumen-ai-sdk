@@ -9,13 +9,42 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+---
+
+## [0.1.4] - 2026-06-07
+
+Correctness, concurrency, and security hardening pass. Two notable behavior changes:
+cached tokens are no longer double-billed for OpenAI/Azure (reported cost drops for
+those spans), and OTLP transport now defaults to TLS for non-loopback endpoints.
+
+### Fixed
+- **cost**: model ids resolve by longest boundary match instead of the first substring, so dated/versioned ids no longer mis-resolve to a pricier base tier (e.g. `gpt-4o-mini-2024-07-18` was billed as `gpt-4o`, 16–20×).
+- **cost**: cached tokens are no longer double-billed for emitters that fold them into `input_tokens` (OpenAI/Azure); cache-only spans (input==output==0, cache_read>0) are now counted.
+- **providers**: `AsyncRedisExporter` no longer self-deadlocks on auto-flush and no longer drops writes across event loops; it runs on a dedicated background loop and shuts down deterministically.
+- **tenant**: `TenantSpanProcessor.on_end` keeps the tenant pinned at span start, fixing a cross-tenant cost/metadata leak when a span ended in another tenant's context; the normalizer now consumes the side-map entries.
+- **sdk**: `init()` adopts an already-installed `TracerProvider`, and a fresh `init()` after `shutdown()` installs a live provider (telemetry no longer silently dies after the first restart).
+- **celery**: spans are closed on `task_revoked` / `worker_shutting_down`; a null `task_id` no longer creates a leaked entry.
+- **normalizer**: error detection compares the `StatusCode` enum (the prior `== 2` check was dead); embedding/retrieval/rerank span kinds get their own event types instead of `AGENT_COMPLETED`.
+- **examples**: the FastAPI quickstart and Celery demo now open spans with model + token usage (previously emitted zero events / always $0).
+
 ### Added
-- `scripts/release_gate.py` to run the local release readiness gate.
-- `examples/jsonl-smoke` as a minimal no-service example using the real SDK.
+- Provider-aware cache accounting (`semconv.provider_includes_cache_in_input`).
+- Normalizer health counters `get_metrics()` / `reset_metrics()` (events_exported / export_errors / events_dropped).
+- RAG event types: `EMBEDDING_*`, `RETRIEVAL_*`, `RERANK_*`.
+- `__version__` on `lumen-ai-celery` and `lumen-ai-openlit`, plus `py.typed` markers for both.
+- A version-consistency test that fails CI if any version declaration drifts.
+- `scripts/release_gate.py`; `examples/jsonl-smoke`.
 
 ### Changed
-- Replaced example API-key placeholders with non-secret placeholders.
-- Updated contributor docs and issue templates for the current release line.
+- ORM event model renamed `LumenAIEvent` → `LumenAIEventRow` to avoid clashing with the public `LumenAIEvent` TypedDict.
+- `RedisExporter` documented as synchronous/low-throughput (use `AsyncRedisExporter` for non-blocking paths).
+- `linear-sync` CI guarded to the canonical repo so fork PRs no longer fail it.
+- Replaced example API-key placeholders with non-secret placeholders; updated contributor docs and issue templates.
+
+### Security
+- `CommunityPricingProvider` fetch hardened: https-only by default, 1 MiB cap, JSON-object validation, and failure back-off — prevents SSRF / local-file read / pricing poisoning of the billing table.
+- OTLP transport defaults to TLS for non-loopback endpoints (`otlp_insecure=None` auto-selects), so telemetry isn't sent in cleartext to a remote collector by default.
+- `tenant_id` is sanitized (control chars stripped, length capped) before it reaches Redis stream keys or logs.
 
 ---
 
