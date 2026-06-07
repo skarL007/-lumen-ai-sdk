@@ -23,9 +23,30 @@ from lumen_ai.providers import (
     RedisExporter,
 )
 from lumen_ai.schema.semconv import PRICING_TABLE
-from lumen_ai.tracer import create_tracer_provider
+from lumen_ai.tracer import add_lumen_processors, create_tracer_provider
 
 logger = logging.getLogger(__name__)
+
+# Marks a TracerProvider that already carries the LumenAI processor chain, so
+# adopting the same provider twice never double-registers the processors.
+_ATTACHED_FLAG = "_lumen_ai_attached"
+
+
+def _reset_global_tracer_provider() -> None:
+    """
+    Best-effort reset of OTel's set-once global TracerProvider so a later
+    ``LumenAI.init()`` can install a fresh provider after ``shutdown()``.
+
+    OTel's ``set_tracer_provider`` fires only once; without this reset a re-init
+    would be ignored and telemetry would keep flowing to the shut-down provider.
+    Touches OTel internals and degrades gracefully if they ever change.
+    """
+    try:
+        from opentelemetry.util._once import Once
+        trace._TRACER_PROVIDER_SET_ONCE = Once()
+        trace._TRACER_PROVIDER = None
+    except Exception:
+        logger.debug("Could not reset global TracerProvider for re-init", exc_info=True)
 
 
 class LumenAI:
@@ -40,6 +61,7 @@ class LumenAI:
     _provider = None
     _exporter: Optional[BaseLumenAIExporter] = None
     _instrumentors: list = []
+    _owns_provider: bool = False
 
     @classmethod
     def init(
@@ -104,17 +126,45 @@ class LumenAI:
             exporter = RedisExporter(redis_url)
         cls._exporter = exporter
 
-        # Tracer provider
-        cls._provider = create_tracer_provider(
-            service_name=service_name,
-            otlp_endpoint=otlp_endpoint,
-            default_tenant=default_tenant,
-            pricing_provider=pricing_provider,
-            exporter=exporter,
-            enable_otlp=enable_otlp,
-            otlp_insecure=otlp_insecure,
-        )
-        trace.set_tracer_provider(cls._provider)
+        # Tracer provider. OTel's set_tracer_provider is set-once, so if a real
+        # SDK provider is already installed (ours from a prior init, or another
+        # library's) we ADOPT it — attaching our processors — rather than setting
+        # a new global that OTel would ignore (which would silently drop events).
+        from opentelemetry.sdk.trace import TracerProvider
+
+        current = trace.get_tracer_provider()
+        if isinstance(current, TracerProvider):
+            if not getattr(current, _ATTACHED_FLAG, False):
+                add_lumen_processors(
+                    current,
+                    default_tenant=default_tenant,
+                    pricing_provider=pricing_provider,
+                    exporter=exporter,
+                    enable_otlp=enable_otlp,
+                    otlp_endpoint=otlp_endpoint,
+                    otlp_insecure=otlp_insecure,
+                )
+                setattr(current, _ATTACHED_FLAG, True)
+                logger.info("LumenAI adopted the already-installed TracerProvider")
+            else:
+                logger.warning(
+                    "LumenAI processors already attached to the active provider — skipping"
+                )
+            cls._provider = current
+            cls._owns_provider = False
+        else:
+            cls._provider = create_tracer_provider(
+                service_name=service_name,
+                otlp_endpoint=otlp_endpoint,
+                default_tenant=default_tenant,
+                pricing_provider=pricing_provider,
+                exporter=exporter,
+                enable_otlp=enable_otlp,
+                otlp_insecure=otlp_insecure,
+            )
+            setattr(cls._provider, _ATTACHED_FLAG, True)
+            trace.set_tracer_provider(cls._provider)
+            cls._owns_provider = True
 
         # Instrumentors (Celery, OpenLIT, etc.)
         for inst in instrumentors or []:
@@ -135,17 +185,34 @@ class LumenAI:
     @classmethod
     def shutdown(cls) -> None:
         """Flush pending spans and shut down all components gracefully."""
-        if cls._provider:
-            cls._provider.shutdown()
+        if not cls._initialized:
+            return
         for inst in cls._instrumentors:
             try:
                 inst.uninstrument()
             except Exception:
                 pass
+        if cls._owns_provider and cls._provider is not None:
+            # We installed this provider — shut it down and free the OTel global
+            # so a later init() can install a fresh, live provider.
+            try:
+                cls._provider.shutdown()
+            except Exception:
+                logger.debug("TracerProvider shutdown raised", exc_info=True)
+            _reset_global_tracer_provider()
+        elif cls._provider is not None:
+            # Adopted an external provider — don't tear it down, just flush.
+            try:
+                cls._provider.force_flush()
+            except Exception:
+                logger.debug("TracerProvider force_flush raised", exc_info=True)
         if cls._exporter:
             cls._exporter.shutdown()
         cls._initialized = False
-        cls._instrumentors.clear()
+        cls._owns_provider = False
+        cls._provider = None
+        cls._exporter = None
+        cls._instrumentors = []
         logger.info("LumenAI shut down")
 
     @classmethod
