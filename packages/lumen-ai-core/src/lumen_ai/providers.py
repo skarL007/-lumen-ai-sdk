@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from lumen_ai.schema.event_types import LumenAIEvent
+from lumen_ai.schema.semconv import match_model_pricing
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +48,7 @@ class DefaultPricingProvider(BasePricingProvider):
         self._table = static_table
 
     def get_pricing(self, model: str) -> Optional[Dict[str, float]]:
-        pricing = self._table.get(model)
-        if not pricing:
-            for key, val in self._table.items():
-                if key in model or model.endswith(key):
-                    return val
-        return pricing
+        return match_model_pricing(self._table, model)
 
 class CommunityPricingProvider(BasePricingProvider):
     """
@@ -81,12 +77,7 @@ class CommunityPricingProvider(BasePricingProvider):
 
     def get_pricing(self, model: str) -> Optional[Dict[str, float]]:
         self._fetch_remote()
-        pricing = self._table.get(model)
-        if not pricing:
-            for key, val in self._table.items():
-                if key in model or model.endswith(key):
-                    return val
-        return pricing
+        return match_model_pricing(self._table, model)
 
 class RedisExporter(BaseLumenAIExporter):
     """Synchronous Redis Streams exporter."""
