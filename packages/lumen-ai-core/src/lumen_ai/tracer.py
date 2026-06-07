@@ -59,7 +59,33 @@ def create_tracer_provider(
 
     resource = Resource.create({"service.name": service_name})
     provider = TracerProvider(resource=resource)
+    add_lumen_processors(
+        provider,
+        default_tenant=default_tenant,
+        pricing_provider=pricing_provider,
+        exporter=exporter,
+        enable_otlp=enable_otlp,
+        otlp_endpoint=otlp_endpoint,
+        otlp_insecure=otlp_insecure,
+    )
+    return provider
 
+
+def add_lumen_processors(
+    provider: TracerProvider,
+    default_tenant: str = "default",
+    pricing_provider: Optional[BasePricingProvider] = None,
+    exporter: Optional[BaseLumenAIExporter] = None,
+    enable_otlp: bool = False,
+    otlp_endpoint: Optional[str] = None,
+    otlp_insecure: bool = True,
+) -> None:
+    """
+    Attach the LumenAI processor chain to a TracerProvider.
+
+    Used both for providers LumenAI creates and for an externally-installed
+    provider that LumenAI adopts (see ``LumenAI.init``).
+    """
     # 1. Tenant — must run first so downstream processors can read tenant_id
     provider.add_span_processor(TenantSpanProcessor(default_tenant=default_tenant))
 
@@ -86,8 +112,6 @@ def create_tracer_provider(
             logger.info("LumenAI OTLP exporter → %s", endpoint)
         except ImportError:
             logger.debug("opentelemetry-exporter-otlp not installed — OTLP skipped")
-
-    return provider
 
 
 def get_lumen_tracer(name: str = "lumen-ai") -> trace.Tracer:

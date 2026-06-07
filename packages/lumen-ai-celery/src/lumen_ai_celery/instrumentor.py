@@ -5,6 +5,7 @@ Uses Celery's built-in signal system (task_prerun, task_postrun, task_failure)
 to create OTel spans without modifying any existing task code.
 """
 import logging
+import threading
 import time
 
 from lumen_ai import BaseInstrumentor
@@ -21,6 +22,17 @@ logger = logging.getLogger(__name__)
 
 # In-flight span tracking: task_id → (span, context_token, start_time)
 _active_spans: dict[str, tuple] = {}
+_active_lock = threading.Lock()
+
+
+def _put_active(task_id: str, entry: tuple) -> None:
+    with _active_lock:
+        _active_spans[task_id] = entry
+
+
+def _pop_active(task_id):
+    with _active_lock:
+        return _active_spans.pop(task_id, None)
 
 
 class CeleryInstrumentor(BaseInstrumentor):
@@ -44,13 +56,23 @@ class CeleryInstrumentor(BaseInstrumentor):
         if self._connected:
             return
 
-        from celery.signals import task_failure, task_postrun, task_prerun
+        from celery.signals import (
+            task_failure,
+            task_postrun,
+            task_prerun,
+            task_revoked,
+            worker_shutting_down,
+        )
 
         self._tracer = trace.get_tracer("LumenAI-master-celery")
 
         task_prerun.connect(self._on_task_prerun, weak=False)
         task_postrun.connect(self._on_task_postrun, weak=False)
         task_failure.connect(self._on_task_failure, weak=False)
+        # Revoked / killed tasks never fire postrun/failure — close their spans
+        # so neither the span nor the context token leaks.
+        task_revoked.connect(self._on_task_revoked, weak=False)
+        worker_shutting_down.connect(self._on_worker_shutdown, weak=False)
 
         self._connected = True
         logger.info("CeleryInstrumentor: signal hooks connected")
@@ -59,11 +81,19 @@ class CeleryInstrumentor(BaseInstrumentor):
         if not self._connected:
             return
 
-        from celery.signals import task_failure, task_postrun, task_prerun
+        from celery.signals import (
+            task_failure,
+            task_postrun,
+            task_prerun,
+            task_revoked,
+            worker_shutting_down,
+        )
 
         task_prerun.disconnect(self._on_task_prerun)
         task_postrun.disconnect(self._on_task_postrun)
         task_failure.disconnect(self._on_task_failure)
+        task_revoked.disconnect(self._on_task_revoked)
+        worker_shutting_down.disconnect(self._on_worker_shutdown)
 
         self._connected = False
         _active_spans.clear()
@@ -73,6 +103,9 @@ class CeleryInstrumentor(BaseInstrumentor):
                         args=None, kwargs=None, **extra):
         """Called before a task executes — start a CHAIN span."""
         if not self._tracer:
+            return
+        if not task_id:
+            logger.debug("Celery task with no task_id — skipping span")
             return
 
         task_name = getattr(task, "name", str(sender)) if task else str(sender)
@@ -95,14 +128,14 @@ class CeleryInstrumentor(BaseInstrumentor):
             span.set_attribute(LumenAIAttributes.TENANT_ID, tenant_id)
 
         ctx_token = trace.context_api.attach(trace.set_span_in_context(span))
-        _active_spans[task_id] = (span, ctx_token, time.monotonic())
+        _put_active(task_id, (span, ctx_token, time.monotonic()))
 
         logger.debug("Celery span started: %s (task_id=%s)", task_name, task_id)
 
     def _on_task_postrun(self, sender=None, task_id=None, task=None,
                          retval=None, state=None, **extra):
         """Called after a task completes — end the span."""
-        entry = _active_spans.pop(task_id, None)
+        entry = _pop_active(task_id)
         if not entry:
             return
 
@@ -130,7 +163,7 @@ class CeleryInstrumentor(BaseInstrumentor):
     def _on_task_failure(self, sender=None, task_id=None, exception=None,
                          traceback=None, **extra):
         """Called when a task fails — end span with error status."""
-        entry = _active_spans.pop(task_id, None)
+        entry = _pop_active(task_id)
         if not entry:
             return
 
@@ -148,3 +181,37 @@ class CeleryInstrumentor(BaseInstrumentor):
         trace.context_api.detach(ctx_token)
 
         logger.debug("Celery span failed: task_id=%s error=%s", task_id, exception)
+
+    def _on_task_revoked(self, request=None, **extra):
+        """Called when a task is revoked — close its span so nothing leaks."""
+        task_id = getattr(request, "id", None) if request is not None else None
+        entry = _pop_active(task_id)
+        if not entry:
+            return
+
+        span, ctx_token, start_time = entry
+        duration_ms = int((time.monotonic() - start_time) * 1000)
+        span.set_attribute("celery.task.state", "REVOKED")
+        span.set_attribute("duration_ms", duration_ms)
+        span.set_status(StatusCode.ERROR, description="Task revoked")
+        span.end()
+        trace.context_api.detach(ctx_token)
+
+        logger.debug("Celery span revoked: task_id=%s", task_id)
+
+    def _on_worker_shutdown(self, **extra):
+        """Worker is stopping — end any still-open spans so they don't leak."""
+        with _active_lock:
+            entries = list(_active_spans.items())
+            _active_spans.clear()
+
+        for task_id, (span, ctx_token, start_time) in entries:
+            try:
+                duration_ms = int((time.monotonic() - start_time) * 1000)
+                span.set_attribute("celery.task.state", "INCOMPLETE")
+                span.set_attribute("duration_ms", duration_ms)
+                span.set_status(StatusCode.ERROR, description="Worker shut down")
+                span.end()
+                trace.context_api.detach(ctx_token)
+            except Exception:
+                logger.debug("Failed to close span for task_id=%s", task_id, exc_info=True)
