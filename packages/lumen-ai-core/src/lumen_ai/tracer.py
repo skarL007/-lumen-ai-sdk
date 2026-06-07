@@ -10,6 +10,7 @@ Processor chain order (on_end runs in insertion order):
 import logging
 import os
 from typing import Optional
+from urllib.parse import urlparse
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -23,6 +24,27 @@ from lumen_ai.providers import BaseLumenAIExporter, BasePricingProvider
 logger = logging.getLogger(__name__)
 
 
+def _resolve_otlp_insecure(endpoint: Optional[str], override: Optional[bool]) -> bool:
+    """
+    Decide whether to use plaintext (insecure) gRPC for the OTLP exporter.
+
+    An explicit ``override`` always wins. Otherwise transport is chosen from the
+    endpoint: ``https://`` → TLS, ``http://`` → plaintext (the caller opted in),
+    and a bare ``host:port`` uses plaintext only for loopback hosts and TLS for
+    anything remote — so traces (model + span names) aren't sent in cleartext to
+    a remote collector by default.
+    """
+    if override is not None:
+        return override
+    ep = (endpoint or "").strip()
+    if ep.startswith("https://"):
+        return False
+    if ep.startswith("http://"):
+        return True
+    host = (urlparse("//" + ep).hostname or ep).lower()
+    return host in ("localhost", "127.0.0.1", "::1") or host.startswith("127.")
+
+
 def create_tracer_provider(
     service_name: str = "lumen-ai",
     otlp_endpoint: Optional[str] = None,
@@ -30,7 +52,7 @@ def create_tracer_provider(
     pricing_provider: Optional[BasePricingProvider] = None,
     exporter: Optional[BaseLumenAIExporter] = None,
     enable_otlp: bool = True,
-    otlp_insecure: bool = True,
+    otlp_insecure: Optional[bool] = None,
 ) -> TracerProvider:
     """
     Create a TracerProvider with the LumenAI processor chain.
@@ -48,8 +70,9 @@ def create_tracer_provider(
         enable_otlp:       Forward raw spans to an OTLP collector.
                            Silently skipped if the exporter package is
                            not installed.
-        otlp_insecure:     Use insecure (plaintext) gRPC for OTLP.
-                           Set to False for TLS in production.
+        otlp_insecure:     Use insecure (plaintext) gRPC for OTLP. Default None
+                           auto-selects: plaintext for loopback / http:// only,
+                           TLS for remote endpoints. Pass True/False to force it.
 
     Returns:
         Configured TracerProvider — set as global via
@@ -78,7 +101,7 @@ def add_lumen_processors(
     exporter: Optional[BaseLumenAIExporter] = None,
     enable_otlp: bool = False,
     otlp_endpoint: Optional[str] = None,
-    otlp_insecure: bool = True,
+    otlp_insecure: Optional[bool] = None,
 ) -> None:
     """
     Attach the LumenAI processor chain to a TracerProvider.
@@ -106,10 +129,16 @@ def add_lumen_processors(
                 otlp_endpoint
                 or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
             )
+            insecure = _resolve_otlp_insecure(endpoint, otlp_insecure)
+            if insecure and not _resolve_otlp_insecure(endpoint, None):
+                logger.warning(
+                    "LumenAI OTLP sending PLAINTEXT telemetry to non-loopback %s "
+                    "(otlp_insecure forced True). Use TLS in production.", endpoint,
+                )
             provider.add_span_processor(
-                BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=otlp_insecure))
+                BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=insecure))
             )
-            logger.info("LumenAI OTLP exporter → %s", endpoint)
+            logger.info("LumenAI OTLP exporter → %s (insecure=%s)", endpoint, insecure)
         except ImportError:
             logger.debug("opentelemetry-exporter-otlp not installed — OTLP skipped")
 

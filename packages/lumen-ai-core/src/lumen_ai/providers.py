@@ -9,6 +9,9 @@ import asyncio
 import json
 import logging
 import threading
+import time
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -56,22 +59,53 @@ class CommunityPricingProvider(BasePricingProvider):
     Fetches model prices from a remote JSON URL (e.g. GitHub Gist).
     Enables community-driven updates without redeploying code.
     """
-    def __init__(self, url: str, fallback_table: Optional[Dict] = None):
+    _MAX_BYTES = 1_048_576  # 1 MiB cap on the pricing document
+
+    def __init__(
+        self,
+        url: str,
+        fallback_table: Optional[Dict] = None,
+        allow_insecure: bool = False,
+    ):
         self._url = url
         self._table = fallback_table or {}
-        self._last_fetch = 0
-        self._ttl = 3600  # Refresh every hour
+        self._last_attempt = 0.0
+        self._ttl = 3600  # Refresh at most once per hour (success OR failure)
+        self._allow_insecure = allow_insecure
 
-    def _fetch_remote(self):
-        import json
-        import time
-        import urllib.request
-        if time.time() - self._last_fetch < self._ttl:
+    def _fetch_remote(self) -> None:
+        now = time.time()
+        if now - self._last_attempt < self._ttl:
             return
+        # Record the attempt up front so a failing/forbidden source backs off for
+        # the full TTL instead of re-blocking the hot path on every span.
+        self._last_attempt = now
+
+        scheme = urllib.parse.urlparse(self._url).scheme.lower()
+        allowed = ("https", "http") if self._allow_insecure else ("https",)
+        if scheme not in allowed:
+            logger.warning(
+                "CommunityPricingProvider: refusing URL scheme '%s' (allowed: %s)",
+                scheme, ", ".join(allowed),
+            )
+            return
+
         try:
             with urllib.request.urlopen(self._url, timeout=5) as response:
-                self._table = json.loads(response.read().decode())
-                self._last_fetch = time.time()
+                raw = response.read(self._MAX_BYTES + 1)
+                if len(raw) > self._MAX_BYTES:
+                    logger.warning(
+                        "CommunityPricingProvider: pricing document exceeds %d bytes — ignored",
+                        self._MAX_BYTES,
+                    )
+                    return
+                data = json.loads(raw.decode())
+                if not isinstance(data, dict):
+                    logger.warning(
+                        "CommunityPricingProvider: pricing document is not a JSON object — ignored"
+                    )
+                    return
+                self._table = data
                 logger.info("LumenAI: Remote pricing table updated from community source.")
         except Exception as e:
             logger.warning("LumenAI: Failed to fetch remote pricing: %s", e)
@@ -81,7 +115,15 @@ class CommunityPricingProvider(BasePricingProvider):
         return match_model_pricing(self._table, model)
 
 class RedisExporter(BaseLumenAIExporter):
-    """Synchronous Redis Streams exporter."""
+    """
+    Synchronous Redis Streams exporter.
+
+    ``export()`` runs a blocking ``XADD`` inline in ``on_end`` on the
+    span-ending (request / event-loop) thread, so it suits low-throughput or
+    testing setups. For high-throughput or latency-sensitive paths use
+    :class:`AsyncRedisExporter`, which buffers and writes from a dedicated
+    background event loop and never blocks the caller.
+    """
 
     def __init__(self, redis_url: str, stream_prefix: str = "LumenAI:events"):
         import redis as _redis

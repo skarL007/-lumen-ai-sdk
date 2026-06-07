@@ -8,6 +8,10 @@ on:
 
 jobs:
   sync:
+    # Only run on the canonical repo: forks lack the LINEAR_API_KEY secret and
+    # cannot reach the private skar-ops reusable workflow, so without this guard
+    # every fork push / PR fails this job with a red X.
+    if: github.repository == 'skarL007/-lumen-ai-sdk'
     uses: skarL007/skar-ops/.github/workflows/linear-sync-reusable.yml@main
     secrets:
       LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
