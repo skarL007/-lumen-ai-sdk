@@ -115,7 +115,15 @@ class CommunityPricingProvider(BasePricingProvider):
         return match_model_pricing(self._table, model)
 
 class RedisExporter(BaseLumenAIExporter):
-    """Synchronous Redis Streams exporter."""
+    """
+    Synchronous Redis Streams exporter.
+
+    ``export()`` runs a blocking ``XADD`` inline in ``on_end`` on the
+    span-ending (request / event-loop) thread, so it suits low-throughput or
+    testing setups. For high-throughput or latency-sensitive paths use
+    :class:`AsyncRedisExporter`, which buffers and writes from a dedicated
+    background event loop and never blocks the caller.
+    """
 
     def __init__(self, redis_url: str, stream_prefix: str = "LumenAI:events"):
         import redis as _redis
