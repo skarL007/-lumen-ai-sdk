@@ -22,11 +22,3 @@ curl -X POST http://localhost:8000/chat \
 docker exec -it fastapi-quickstart-redis-1 \
   redis-cli XRANGE "LumenAI:events:acme-corp" - +
 ```
-
-## After PyPI is live
-
-Replace the git install in `Dockerfile` with:
-
-```dockerfile
-RUN pip install fastapi uvicorn anthropic lumen-ai-core
-```

@@ -12,6 +12,7 @@
     <style>
         :root { --primary: #00F5FF; --secondary: #9D4EDD; --bg: #050505; }
         body { background-color: var(--bg); font-family: 'Inter', sans-serif; color: white; overflow: hidden; }
+        .legacy-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 50; background: #fef3c7; color: #78350f; padding: 10px 16px; text-align: center; font: 700 13px Inter, sans-serif; }
         
         /* 3D Prism Animation */
         .prism-3d {
@@ -48,6 +49,7 @@
     </style>
 </head>
 <body>
+    <div class="legacy-banner">Legacy mock visual only. Use examples/local-observability-demo for the real SDK demo.</div>
     <div id="root"></div>
 
     <script type="text/babel">

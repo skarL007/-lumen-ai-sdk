@@ -12,8 +12,7 @@ from contextlib import asynccontextmanager
 
 import anthropic
 from fastapi import FastAPI, Request
-from lumen_ai import LumenAI
-from lumen_ai.processors.tenant import _current_tenant, set_tenant_id
+from lumen_ai import LumenAI, lumen_tenant
 
 
 @asynccontextmanager
@@ -32,11 +31,8 @@ app = FastAPI(title="LumenAI Quickstart", lifespan=lifespan)
 @app.middleware("http")
 async def tenant_middleware(request: Request, call_next):
     tenant_id = request.headers.get("X-Tenant-ID", "anonymous")
-    token = set_tenant_id(tenant_id)
-    try:
+    with lumen_tenant(tenant_id):
         return await call_next(request)
-    finally:
-        _current_tenant.reset(token)
 
 
 @app.post("/chat")

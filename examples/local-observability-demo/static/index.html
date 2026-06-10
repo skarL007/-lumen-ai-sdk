@@ -12,6 +12,7 @@
         <div>
           <p class="eyebrow">Local SDK demo</p>
           <h1>LumenAI Local Observability</h1>
+          <p id="stream-name" class="stream-name">LumenAI:events:acme</p>
         </div>
         <div class="controls">
           <label>
@@ -34,11 +35,23 @@
             Output
             <input id="output-tokens" type="number" min="0" value="300">
           </label>
+          <label>
+            Cache
+            <input id="cache-tokens" type="number" min="0" value="0">
+          </label>
+          <label>
+            Latency
+            <input id="latency-ms" type="number" min="0" max="500" value="18">
+          </label>
           <label class="check-control">
             <input id="fail-input" type="checkbox">
             Fail
           </label>
-          <button id="simulate-button" type="button">Run span</button>
+          <div class="button-row">
+            <button id="simulate-button" type="button">Run span</button>
+            <button id="scenario-button" class="secondary" type="button">Run scenario</button>
+            <button id="reset-button" class="danger" type="button">Reset tenant</button>
+          </div>
         </div>
       </section>
 
@@ -58,6 +71,10 @@
         <article>
           <span>Errors</span>
           <strong id="metric-errors">0</strong>
+        </article>
+        <article>
+          <span>Cache tokens</span>
+          <strong id="metric-cache">0</strong>
         </article>
       </section>
 
