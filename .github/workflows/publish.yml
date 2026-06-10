@@ -36,7 +36,7 @@ jobs:
       - name: Install build tools
         run: |
           python -m pip install --upgrade pip
-          pip install build
+          pip install build twine
 
       - name: Build ${{ matrix.package }}
         if: >-
@@ -48,6 +48,17 @@ jobs:
             (github.event.inputs.package == 'openlit' && matrix.package == 'lumen-ai-openlit')
           }}
         run: python -m build packages/${{ matrix.package }}
+
+      - name: Check ${{ matrix.package }} distributions
+        if: >-
+          ${{
+            github.event_name == 'release' ||
+            github.event.inputs.package == 'all' ||
+            (github.event.inputs.package == 'core' && matrix.package == 'lumen-ai-core') ||
+            (github.event.inputs.package == 'celery' && matrix.package == 'lumen-ai-celery') ||
+            (github.event.inputs.package == 'openlit' && matrix.package == 'lumen-ai-openlit')
+          }}
+        run: twine check packages/${{ matrix.package }}/dist/*
 
       - name: Publish ${{ matrix.package }} to PyPI
         if: >-
@@ -61,4 +72,3 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: packages/${{ matrix.package }}/dist/
-          skip-existing: true

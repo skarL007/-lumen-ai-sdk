@@ -9,13 +9,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+---
+
+## [0.2.0] - 2026-06-10
+
 ### Added
 - `scripts/release_gate.py` to run the local release readiness gate.
 - `examples/jsonl-smoke` as a minimal no-service example using the real SDK.
+- Deterministic local observability scenario with health, stats, and reset endpoints.
+- Top-level exports for `BaseLumenAIExporter`, `BasePricingProvider`, and `DefaultPricingProvider`.
+- Release process, support, maintainer, and code of conduct docs.
 
 ### Changed
 - Replaced example API-key placeholders with non-secret placeholders.
 - Updated contributor docs and issue templates for the current release line.
+- Local demo dashboard now shows trace/span IDs, duration, severity, cache tokens, Redis stream name, and normalized JSON.
+- CI and local release gate now build wheels and sdists, run `twine check`, and cover Python 3.11 and 3.12.
+
+### Fixed
+- Prevented `AsyncRedisExporter` from deadlocking when `max_buffer` triggers a flush.
+- Preserved explicit LumenAI, GenAI, and OpenInference cost/token metadata in normalized events.
+- Ensured Celery result token/cost metadata reaches exported normalized events.
+- Avoided double shutdown of custom exporters.
 
 ---
 

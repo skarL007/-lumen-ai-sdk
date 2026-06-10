@@ -64,7 +64,9 @@ def main() -> int:
         venv_dir = tmp_dir / "venv"
 
         for package in PACKAGES:
-            run([python, "-m", "build", str(package), "--wheel", "--outdir", str(dist_dir)])
+            run([python, "-m", "build", str(package), "--outdir", str(dist_dir)])
+
+        run([python, "-m", "twine", "check", *sorted(str(path) for path in dist_dir.iterdir())])
 
         run([python, "-m", "venv", str(venv_dir)])
         clean_python = venv_python(venv_dir)
@@ -82,7 +84,9 @@ def main() -> int:
                 "-c",
                 (
                     "import lumen_ai; import lumen_ai.models; "
-                    "from lumen_ai import LumenAI, JsonlExporter, lumen_tenant; "
+                    "from lumen_ai import "
+                    "BaseLumenAIExporter, BasePricingProvider, DefaultPricingProvider, "
+                    "LumenAI, JsonlExporter, lumen_tenant; "
                     "from lumen_ai_celery import CeleryInstrumentor; "
                     "from lumen_ai_openlit import OpenLITBridge; "
                     "print('Release gate import OK')"

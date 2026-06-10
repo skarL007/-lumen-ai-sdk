@@ -9,19 +9,23 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install lint dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
           pip install -e packages/lumen-ai-core
-          pip install ruff mypy
 
       - name: Ruff check
         run: ruff check packages/lumen-ai-core/src packages/lumen-ai-celery/src packages/lumen-ai-openlit/src --select E,F,W,I --ignore E501
@@ -31,6 +35,10 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
 
     services:
       redis:
@@ -49,24 +57,24 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install packages and test tools
         run: |
           python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
           pip install -e packages/lumen-ai-core
           pip install -e packages/lumen-ai-celery
           pip install -e packages/lumen-ai-openlit
-          pip install pytest pytest-cov fastapi httpx
 
       - name: Verify public imports
-        run: python -c "from lumen_ai import LumenAI, BaseInstrumentor, RedisExporter, AsyncRedisExporter, JsonlExporter, lumen_tenant; from lumen_ai_celery import CeleryInstrumentor; from lumen_ai_openlit import OpenLITBridge; print('Import OK')"
+        run: python -c "from lumen_ai import LumenAI, BaseInstrumentor, BaseLumenAIExporter, BasePricingProvider, DefaultPricingProvider, RedisExporter, AsyncRedisExporter, JsonlExporter, lumen_tenant; from lumen_ai_celery import CeleryInstrumentor; from lumen_ai_openlit import OpenLITBridge; print('Import OK')"
 
       - name: Run tests with coverage
         run: pytest tests/ -v --cov=lumen_ai --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage to Codecov
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && matrix.python-version == '3.11'
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
@@ -76,22 +84,27 @@ jobs:
 
   package:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
-      - name: Build wheels
+      - name: Build distributions
         run: |
           python -m pip install --upgrade pip
-          pip install build
+          pip install -r requirements-dev.txt
           mkdir -p /tmp/lumen-dist
-          python -m build packages/lumen-ai-core --wheel --outdir /tmp/lumen-dist
-          python -m build packages/lumen-ai-celery --wheel --outdir /tmp/lumen-dist
-          python -m build packages/lumen-ai-openlit --wheel --outdir /tmp/lumen-dist
+          python -m build packages/lumen-ai-core --outdir /tmp/lumen-dist
+          python -m build packages/lumen-ai-celery --outdir /tmp/lumen-dist
+          python -m build packages/lumen-ai-openlit --outdir /tmp/lumen-dist
+          twine check /tmp/lumen-dist/*
           ls -la /tmp/lumen-dist
 
       - name: Clean install wheels and verify imports
@@ -99,7 +112,7 @@ jobs:
           python -m venv /tmp/lumen-clean
           /tmp/lumen-clean/bin/python -m pip install --upgrade pip
           /tmp/lumen-clean/bin/python -m pip install /tmp/lumen-dist/*.whl
-          /tmp/lumen-clean/bin/python -c "import lumen_ai; import lumen_ai.models; from lumen_ai import LumenAI, JsonlExporter, lumen_tenant; from lumen_ai_celery import CeleryInstrumentor; from lumen_ai_openlit import OpenLITBridge; print('Clean install OK')"
+          /tmp/lumen-clean/bin/python -c "import lumen_ai; import lumen_ai.models; from lumen_ai import LumenAI, BaseLumenAIExporter, JsonlExporter, lumen_tenant; from lumen_ai_celery import CeleryInstrumentor; from lumen_ai_openlit import OpenLITBridge; print('Clean install OK')"
 
   dependency-audit:
     runs-on: ubuntu-latest
@@ -115,6 +128,6 @@ jobs:
       - name: Run pip-audit
         run: |
           python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
           pip install -e packages/lumen-ai-core
-          pip install pip-audit
           pip-audit

@@ -41,18 +41,19 @@ The repository is a Python monorepo with three packages and a shared test suite:
 git clone https://github.com/skarL007/-lumen-ai-sdk.git
 cd -lumen-ai-sdk
 
-# 2. Install the core package in editable mode
-pip install -e packages/lumen-ai-core
+# 2. Install development tooling
+pip install -r requirements-dev.txt
 
-# 3. Install optional packages if working on them
+# 3. Install packages in editable mode
+pip install -e packages/lumen-ai-core
 pip install -e packages/lumen-ai-celery
 pip install -e packages/lumen-ai-openlit
 
-# 4. Install test dependencies
-pip install pytest
-
-# 5. Run all tests to verify your setup
+# 4. Run all tests to verify your setup
 pytest tests/ -v
+
+# 5. Before release work, run the full local gate
+python scripts/release_gate.py
 ```
 
 The full test suite should pass. If any fail on a clean clone, please [open an issue](https://github.com/skarL007/-lumen-ai-sdk/issues).

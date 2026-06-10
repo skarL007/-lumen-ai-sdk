@@ -92,11 +92,11 @@ Redis Streams: LumenAI:events:client-abc
 
 | Version | Supported |
 |---|---|
-| Latest alpha (main branch) | Yes — security fixes applied here |
-| Any pinned pre-release tag | No — please update to latest |
-| PyPI release (v0.1.0+) | Yes — receives security patches as patch releases |
+| Latest alpha (`LumenAI` branch) | Yes - security fixes applied here |
+| Any pinned pre-release tag | No - please update to latest |
+| Latest PyPI `0.x` release | Best effort - receives patch releases when fixes are practical |
 
-LumenAI is currently in alpha. The latest commit on the `main` branch and the latest PyPI release are both actively supported. We recommend pinning to the latest release and updating promptly when new versions are published.
+LumenAI is currently in alpha. The latest commit on the `LumenAI` branch and the latest PyPI release are the supported targets. See [SUPPORT.md](SUPPORT.md) for compatibility expectations.
 
 ---
 

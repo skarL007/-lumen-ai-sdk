@@ -16,7 +16,7 @@ LumenAI is a Python OpenTelemetry extension that enriches GenAI spans with tenan
 - `lumen-ai-core`: OTel processor chain for tenant tagging, cost calculation, event normalization, Redis export, JSONL export, async Redis export, and typed public API.
 - `lumen-ai-celery`: Celery signal instrumentor for task lifecycle spans without modifying task code.
 - `lumen-ai-openlit`: OpenLIT bridge that passes the LumenAI tracer provider into OpenLIT auto-instrumentation.
-- Redis integration tests, clean wheel build checks, package import checks, mypy on core, and non-blocking dependency audit in CI.
+- Redis integration tests, clean wheel and sdist checks, package import checks, mypy on core, and non-blocking dependency audit in CI.
 - Local demo with no paid API key: [examples/local-observability-demo](examples/local-observability-demo).
 
 This project is still alpha. The core contracts are usable, but the API can still evolve before v1.0.
@@ -90,15 +90,25 @@ cd examples/local-observability-demo
 docker compose up --build
 ```
 
-Open `http://localhost:8000` for the dashboard, or use the API directly:
+Open `http://localhost:8000` for the dashboard. The Compose file starts Redis, waits for it to become healthy, and runs the FastAPI app on port `8000`.
+
+Use the API directly:
 
 ```bash
+curl http://localhost:8000/health
+
+curl -X POST http://localhost:8000/scenario
+
 curl -X POST http://localhost:8000/simulate \
   -H "Content-Type: application/json" \
-  -d '{"tenant_id":"acme","model":"gpt-4o-mini","input_tokens":1200,"output_tokens":300}'
+  -d '{"tenant_id":"acme","model":"gpt-4o-mini","input_tokens":1200,"output_tokens":300,"cache_read_tokens":0,"latency_ms":18}'
 
 curl http://localhost:8000/events/acme
+curl http://localhost:8000/stats/acme
+curl -X DELETE http://localhost:8000/events/acme
 ```
+
+If port `8000` is already in use, change the left side of `8000:8000` in `examples/local-observability-demo/docker-compose.yml`. Stop and remove the demo with `docker compose down`.
 
 The old static visual simulation is kept as [lumen-simulation.html](lumen-simulation.html). It is a portfolio visual, not proof of SDK behavior.
 
@@ -107,6 +117,9 @@ The old static visual simulation is kept as [lumen-simulation.html](lumen-simula
 ```python
 from lumen_ai import (
     AsyncRedisExporter,
+    BaseLumenAIExporter,
+    BasePricingProvider,
+    DefaultPricingProvider,
     JsonlExporter,
     LumenAI,
     LumenAIEvent,
@@ -120,6 +133,20 @@ from lumen_ai import (
 
 `LumenAIEvent` is a typed metadata-only event contract. Exporters receive `tenant_id` plus this normalized event object.
 
+## Event Schema
+
+`LumenAIEvent` contains metadata only:
+
+| Field | Meaning |
+|---|---|
+| `tenant_id`, `session_id`, `agent_id` | Business and workflow identifiers supplied through context or span attributes |
+| `trace_id`, `span_id`, `timestamp`, `duration_ms` | OpenTelemetry timing and trace metadata |
+| `event_type`, `severity`, `message`, `is_error` | Normalized event classification |
+| `cost_usd`, `tokens_in`, `tokens_out`, `cache_read_tokens` | Cost and token metrics from GenAI/OpenInference attributes or explicit LumenAI metadata |
+| `model`, `tool_name`, `span_kind` | Model/tool/span labels used for filtering and dashboards |
+
+Prompt text, completion text, tool arguments, raw request bodies, and raw response bodies are not exported.
+
 ## Packages
 
 | Package | Purpose |
@@ -131,16 +158,15 @@ from lumen_ai import (
 ## Development
 
 ```bash
+pip install -r requirements-dev.txt
 pip install -e packages/lumen-ai-core
 pip install -e packages/lumen-ai-celery
 pip install -e packages/lumen-ai-openlit
-pip install pytest pytest-cov fastapi httpx ruff mypy build
 
 python scripts/release_gate.py
 ```
 
-The release gate runs tests, ruff, mypy, wheel builds, clean wheel install,
-`pip check`, and public import verification. To run individual gates:
+The release gate runs tests, ruff, mypy, wheel and sdist builds, `twine check`, clean wheel install, `pip check`, and public import verification. To run individual gates:
 
 ```bash
 python -m pytest tests -q
@@ -149,6 +175,7 @@ python -m mypy packages/lumen-ai-core/src/lumen_ai --ignore-missing-imports --no
 python -m build packages/lumen-ai-core
 python -m build packages/lumen-ai-celery
 python -m build packages/lumen-ai-openlit
+python -m twine check packages/*/dist/*
 ```
 
 Performance benchmarks are opt-in because they depend on local machine load:
@@ -161,9 +188,9 @@ The GitHub Actions `Benchmarks` workflow runs the same benchmark suite on demand
 
 ## Roadmap
 
+- v0.2.0: SDK contract fixes, richer real local demo, Python 3.11/3.12 CI, sdist/wheel release checks.
 - v0.1.3: JSONL exporter, live dashboard screenshot, and benchmark workflow.
 - v0.1.2: package hardening, typed event contract, honest docs, local no-key demo, clean install CI.
-- v0.2: richer exporter examples, typed pricing provider contract, benchmark docs, OpenLIT compatibility matrix.
 - v0.3: production dashboard example backed by Redis or ClickHouse.
 - v1.0: stable public API, migration guide, security review, and production readiness checklist.
 
