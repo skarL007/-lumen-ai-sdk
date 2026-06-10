@@ -18,6 +18,39 @@ sys.path.insert(
 )
 
 
+class FakeContext:
+    trace_id = 0xAABB
+    span_id = 0xCCDD
+
+
+class FakeStatus:
+    status_code = 0
+    is_ok = True
+
+
+class FakeSpan:
+    def __init__(self):
+        self.context = FakeContext()
+        self.name = "celery.demo.task"
+        self.start_time = 1_000_000_000
+        self.end_time = 1_250_000_000
+        self.status = FakeStatus()
+        self.attributes = {}
+        self.ended = False
+
+    def set_attribute(self, key, value):
+        self.attributes[key] = value
+
+    def set_status(self, status, description=None):
+        self.status = status
+
+    def record_exception(self, exception):
+        self.exception = exception
+
+    def end(self):
+        self.ended = True
+
+
 def test_openlit_bridge_passes_supported_init_kwargs(monkeypatch):
     from lumen_ai_openlit import OpenLITBridge
 
@@ -84,6 +117,43 @@ def test_celery_signal_handlers_track_success_without_worker():
 
     assert "task-1" not in _active_spans
     span.end.assert_called_once()
+
+
+def test_celery_success_metadata_reaches_normalized_event():
+    from lumen_ai.processors.normalizer import EventNormalizerProcessor
+    from lumen_ai_celery.instrumentor import CeleryInstrumentor, _active_spans
+
+    captured: list[dict] = []
+
+    class CaptureExporter:
+        def export(self, tenant_id: str, event: dict) -> None:
+            captured.append(event)
+
+    span = FakeSpan()
+    tracer = MagicMock()
+    tracer.start_span.return_value = span
+
+    instrumentor = CeleryInstrumentor()
+    instrumentor._tracer = tracer
+
+    task = MagicMock(name="Task")
+    task.name = "demo.task"
+
+    _active_spans.clear()
+    instrumentor._on_task_prerun(task_id="task-3", task=task, kwargs={"tenant_id": "acme"})
+    instrumentor._on_task_postrun(
+        task_id="task-3",
+        task=task,
+        retval={"tokens_in": 10, "tokens_out": 5, "cost_usd": 0.001},
+        state="SUCCESS",
+    )
+
+    EventNormalizerProcessor(exporter=CaptureExporter()).on_end(span)
+
+    assert captured[0]["tenant_id"] == "acme"
+    assert captured[0]["tokens_in"] == 10
+    assert captured[0]["tokens_out"] == 5
+    assert captured[0]["cost_usd"] == 0.001
 
 
 def test_celery_signal_handlers_track_failure_without_worker():

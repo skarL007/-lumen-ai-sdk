@@ -8,6 +8,7 @@ Core package for the LumenAI SDK.
 - Tenant context helpers: `set_tenant_id`, `get_tenant_id`, `clear_tenant_id`, `lumen_tenant`
 - OTel processors for tenant tagging, cost computation, and event normalization
 - `RedisExporter`, `AsyncRedisExporter`, and `JsonlExporter`
+- `BaseLumenAIExporter`, `BasePricingProvider`, and `DefaultPricingProvider` for custom sinks and pricing sources
 - `LumenAIEvent` typed event contract
 - SQLAlchemy ORM models for downstream storage integrations
 

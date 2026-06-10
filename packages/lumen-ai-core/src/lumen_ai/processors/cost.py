@@ -9,7 +9,7 @@ Must run AFTER TenantSpanProcessor in the processor chain.
 import logging
 import threading
 from collections import OrderedDict
-from typing import Optional
+from typing import Mapping, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 
@@ -51,6 +51,13 @@ def _attribute_to_int(value: object) -> int:
             return int(value)
         except ValueError:
             return 0
+    return 0
+
+
+def _first_attribute_to_int(attrs: Mapping[str, object], *keys: str) -> int:
+    for key in keys:
+        if key in attrs:
+            return _attribute_to_int(attrs.get(key))
     return 0
 
 
@@ -124,8 +131,16 @@ class CostComputingSpanProcessor(SpanProcessor):
                 logger.debug("No pricing found for model '%s' — cost skipped", model)
                 return
 
-            input_tokens = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_INPUT_TOKENS))
-            output_tokens = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_OUTPUT_TOKENS))
+            input_tokens = _first_attribute_to_int(
+                attrs,
+                GenAIAttributes.USAGE_INPUT_TOKENS,
+                OpenInferenceAttributes.TOKEN_COUNT_PROMPT,
+            )
+            output_tokens = _first_attribute_to_int(
+                attrs,
+                GenAIAttributes.USAGE_OUTPUT_TOKENS,
+                OpenInferenceAttributes.TOKEN_COUNT_COMPLETION,
+            )
             cache_read = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_CACHE_READ))
 
             if input_tokens == 0 and output_tokens == 0:

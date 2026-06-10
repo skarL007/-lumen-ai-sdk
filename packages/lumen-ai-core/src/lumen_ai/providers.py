@@ -168,15 +168,20 @@ class AsyncRedisExporter(BaseLumenAIExporter):
 
     def export(self, tenant_id: str, event: LumenAIEvent) -> None:
         """Buffer event for async flush (called synchronously from on_end)."""
+        events: List[Tuple[str, LumenAIEvent]] = []
         with self._lock:
             self._buffer.append((tenant_id, event))
             if len(self._buffer) >= self._max_buffer:
-                self._flush_sync()
+                events = list(self._buffer)
+                self._buffer.clear()
+        if events:
+            self._flush_sync(events)
 
-    def _flush_sync(self) -> None:
+    def _flush_sync(self, events: Optional[List[Tuple[str, LumenAIEvent]]] = None) -> None:
         """Synchronous fallback flush using a new event loop."""
         import asyncio
-        events = self._drain_buffer()
+        if events is None:
+            events = self._drain_buffer()
         if not events:
             return
         try:

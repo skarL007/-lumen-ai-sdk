@@ -142,9 +142,9 @@ class LumenAI:
                 inst.uninstrument()
             except Exception:
                 pass
-        if cls._exporter:
-            cls._exporter.shutdown()
         cls._initialized = False
+        cls._provider = None
+        cls._exporter = None
         cls._instrumentors.clear()
         logger.info("LumenAI shut down")
 

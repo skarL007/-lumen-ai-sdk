@@ -23,7 +23,7 @@ from lumen_ai.processors.tenant import (
 )
 from lumen_ai.processors.cost import CostComputingSpanProcessor, get_span_cost_data
 from lumen_ai.providers import DefaultPricingProvider
-from lumen_ai.schema.semconv import PRICING_TABLE, GenAIAttributes
+from lumen_ai.schema.semconv import PRICING_TABLE, GenAIAttributes, OpenInferenceAttributes
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +122,29 @@ def test_cost_cache_read_with_minimal_input():
     # total = tiny input cost + $0.30 cache
     assert cost_data["cost_usd"] >= 0.29
     assert cost_data["cache_read_tokens"] == 1_000_000
+
+
+def test_cost_processor_reads_openinference_token_attributes():
+    pricing = DefaultPricingProvider(PRICING_TABLE)
+    proc = CostComputingSpanProcessor(pricing)
+
+    span = MagicMock()
+    span.context.trace_id = 0xC4
+    span.context.span_id = 0xD4
+    span.name = "openinference-llm"
+    span.attributes = {
+        OpenInferenceAttributes.MODEL_NAME: "gpt-4o-mini",
+        OpenInferenceAttributes.TOKEN_COUNT_PROMPT: 1200,
+        OpenInferenceAttributes.TOKEN_COUNT_COMPLETION: 300,
+    }
+
+    proc.on_end(span)
+
+    cost_data = get_span_cost_data(span)
+    assert cost_data["model"] == "gpt-4o-mini"
+    assert cost_data["input_tokens"] == 1200
+    assert cost_data["output_tokens"] == 300
+    assert cost_data["cost_usd"] > 0
 
 
 # ---------------------------------------------------------------------------

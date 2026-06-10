@@ -33,6 +33,36 @@ def _attribute_to_str(value: object) -> str:
     return ""
 
 
+def _attribute_to_int(value: object) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
+
+
+def _attribute_to_float(value: object) -> float:
+    if value is None:
+        return 0.0
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return 0.0
+    return 0.0
+
+
 def _is_error(span: ReadableSpan) -> bool:
     """Return True if span ended in an error state."""
     status = span.status
@@ -94,6 +124,41 @@ class EventNormalizerProcessor(SpanProcessor):
                 or "default"
             )
             error = _is_error(span)
+            cost_usd = (
+                cost_data["cost_usd"]
+                if "cost_usd" in cost_data
+                else (
+                    _attribute_to_float(attrs.get(LumenAIAttributes.COST_USD))
+                    or _attribute_to_float(attrs.get(OpenInferenceAttributes.COST_TOTAL))
+                )
+            )
+            tokens_in = (
+                cost_data["input_tokens"]
+                if "input_tokens" in cost_data
+                else (
+                    _attribute_to_int(attrs.get(GenAIAttributes.USAGE_INPUT_TOKENS))
+                    or _attribute_to_int(attrs.get(OpenInferenceAttributes.TOKEN_COUNT_PROMPT))
+                )
+            )
+            tokens_out = (
+                cost_data["output_tokens"]
+                if "output_tokens" in cost_data
+                else (
+                    _attribute_to_int(attrs.get(GenAIAttributes.USAGE_OUTPUT_TOKENS))
+                    or _attribute_to_int(attrs.get(OpenInferenceAttributes.TOKEN_COUNT_COMPLETION))
+                )
+            )
+            cache_read_tokens = (
+                cost_data["cache_read_tokens"]
+                if "cache_read_tokens" in cost_data
+                else _attribute_to_int(attrs.get(GenAIAttributes.USAGE_CACHE_READ))
+            )
+            model = (
+                cost_data.get("model")
+                or _attribute_to_str(attrs.get(GenAIAttributes.REQUEST_MODEL))
+                or _attribute_to_str(attrs.get(GenAIAttributes.RESPONSE_MODEL))
+                or _attribute_to_str(attrs.get(OpenInferenceAttributes.MODEL_NAME))
+            )
 
             event: LumenAIEvent = {
                 "id": str(uuid.uuid4()),
@@ -109,12 +174,12 @@ class EventNormalizerProcessor(SpanProcessor):
                 "duration_ms": _span_duration_ms(span),
                 "is_error": error,
                 # Cost data — zero if CostProcessor did not run or found no pricing
-                "cost_usd": cost_data.get("cost_usd", 0.0),
-                "tokens_in": cost_data.get("input_tokens", 0),
-                "tokens_out": cost_data.get("output_tokens", 0),
-                "cache_read_tokens": cost_data.get("cache_read_tokens", 0),
+                "cost_usd": cost_usd,
+                "tokens_in": tokens_in,
+                "tokens_out": tokens_out,
+                "cache_read_tokens": cache_read_tokens,
                 # Model / tool metadata
-                "model": cost_data.get("model") or _attribute_to_str(attrs.get(GenAIAttributes.REQUEST_MODEL)),
+                "model": model,
                 "tool_name": _attribute_to_str(attrs.get(GenAIAttributes.TOOL_NAME)),
                 "span_kind": _attribute_to_str(attrs.get(OpenInferenceAttributes.SPAN_KIND)),
             }
