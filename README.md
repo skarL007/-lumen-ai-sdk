@@ -16,7 +16,7 @@ LumenAI is a Python OpenTelemetry extension that enriches GenAI spans with tenan
 - `lumen-ai-core`: OTel processor chain for tenant tagging, cost calculation, event normalization, Redis export, JSONL export, async Redis export, and typed public API.
 - `lumen-ai-celery`: Celery signal instrumentor for task lifecycle spans without modifying task code.
 - `lumen-ai-openlit`: OpenLIT bridge that passes the LumenAI tracer provider into OpenLIT auto-instrumentation.
-- Redis integration tests, clean wheel build checks, package import checks, mypy on core, and non-blocking dependency audit in CI.
+- Redis integration tests, clean wheel/sdist build checks, package import checks, mypy on core, and blocking dependency audit in CI.
 - Local demo with no paid API key: [examples/local-observability-demo](examples/local-observability-demo).
 
 This project is still alpha. The core contracts are usable, but the API can still evolve before v1.0.
@@ -29,10 +29,13 @@ This project is still alpha. The core contracts are usable, but the API can stil
 
 ## Quick Start
 
-Install the core package:
+PyPI may still lag the audited source version. Until `0.1.4` is published,
+install from the repository or from a local checkout:
 
 ```bash
-pip install lumen-ai-core
+pip install "git+https://github.com/skarL007/-lumen-ai-sdk.git#subdirectory=packages/lumen-ai-core"
+# or, inside this repository:
+pip install -e packages/lumen-ai-core
 ```
 
 Initialize once at application startup:
@@ -114,6 +117,7 @@ from lumen_ai import (
     clear_tenant_id,
     get_tenant_id,
     lumen_tenant,
+    reset_tenant_id,
     set_tenant_id,
 )
 ```
@@ -134,13 +138,13 @@ from lumen_ai import (
 pip install -e packages/lumen-ai-core
 pip install -e packages/lumen-ai-celery
 pip install -e packages/lumen-ai-openlit
-pip install pytest pytest-cov fastapi httpx ruff mypy build
+pip install pytest pytest-cov fastapi httpx ruff mypy build twine pip-audit celery
 
 python scripts/release_gate.py
 ```
 
-The release gate runs tests, ruff, mypy, wheel builds, clean wheel install,
-`pip check`, and public import verification. To run individual gates:
+The release gate runs tests, ruff, mypy, wheel/sdist builds, `twine check`,
+clean wheel and sdist installs, `pip check`, and public import verification. To run individual gates:
 
 ```bash
 python -m pytest tests -q
@@ -149,6 +153,7 @@ python -m mypy packages/lumen-ai-core/src/lumen_ai --ignore-missing-imports --no
 python -m build packages/lumen-ai-core
 python -m build packages/lumen-ai-celery
 python -m build packages/lumen-ai-openlit
+python -m twine check packages/*/dist/*
 ```
 
 Performance benchmarks are opt-in because they depend on local machine load:
@@ -161,6 +166,7 @@ The GitHub Actions `Benchmarks` workflow runs the same benchmark suite on demand
 
 ## Roadmap
 
+- v0.1.4: runtime lifecycle fixes, tenant sanitization, release hardening, and updated examples.
 - v0.1.3: JSONL exporter, live dashboard screenshot, and benchmark workflow.
 - v0.1.2: package hardening, typed event contract, honest docs, local no-key demo, clean install CI.
 - v0.2: richer exporter examples, typed pricing provider contract, benchmark docs, OpenLIT compatibility matrix.
@@ -170,3 +176,11 @@ The GitHub Actions `Benchmarks` workflow runs the same benchmark suite on demand
 ## Security Model
 
 LumenAI reads OpenTelemetry metadata such as model names, token counts, trace IDs, span IDs, tenant IDs, duration, and status. It does not export prompts, completions, tool arguments, or raw request/response bodies. See [SECURITY.md](SECURITY.md).
+
+## Storage Schema Note
+
+The SQLAlchemy models include tenant-scoped composite constraints for new schemas
+so sessions, agents, events, artifacts, and approvals cannot be related across
+tenants by foreign key. This release does not add Alembic migrations; existing
+databases should be migrated explicitly or recreated in a controlled maintenance
+window before relying on the new constraints.

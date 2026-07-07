@@ -11,7 +11,7 @@ Start worker:
     celery -A main worker -l info --pool=solo
 
 Trigger task:
-    python -c "from main import summarize; summarize.delay('client-acme', 'Long document text...')"
+    python -c "from main import summarize; summarize.delay(tenant_id='client-acme', text='Long document text...')"
 """
 from celery import Celery
 from lumen_ai import LumenAI

@@ -4,6 +4,7 @@ from .tenant import (
     TenantSpanProcessor,
     get_current_tenant,
     get_span_tenant,
+    reset_tenant_id,
     set_current_tenant,
 )
 
@@ -13,6 +14,7 @@ __all__ = [
     "TenantSpanProcessor",
     "EventNormalizerProcessor",
     "set_current_tenant",
+    "reset_tenant_id",
     "get_current_tenant",
     "get_span_tenant",
 ]

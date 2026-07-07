@@ -9,6 +9,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+- **sdk**: reinitializing against an externally attached `TracerProvider` now updates exporter, pricing provider, and default tenant through shared runtime state instead of keeping stale sinks.
+- **normalizer**: OpenInference-only spans now preserve `llm.model_name`, prompt tokens, and completion tokens even when pricing is unknown and `cost_usd` stays zero.
+- **providers**: `AsyncRedisExporter.shutdown()` now waits for in-flight auto-flush futures before closing Redis and its background loop.
+- **tenant**: span attributes, Celery kwargs, tenant context, and exporter stream keys now share the same tenant sanitization path; `reset_tenant_id(token)` is public.
+
+### Changed
+- Hardened CI and publishing with Python 3.11/3.12 matrices, pinned GitHub Actions, blocking dependency audit, release-gate enforcement, `twine check`, and wheel/sdist clean-install validation.
+- Updated FastAPI, Celery, LangChain, and custom exporter examples to match the public API and active instrumentation path.
+- Added a local audit harness with probes, MCP/context/skills/agent prompts, generated report data, and a visual dashboard.
+
 ---
 
 ## [0.1.4] - 2026-06-07

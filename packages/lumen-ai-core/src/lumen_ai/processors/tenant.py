@@ -13,6 +13,7 @@ consuming the data.
 Public API
 ----------
 set_tenant_id(tenant_id)        Set tenant for current async context.
+reset_tenant_id(token)          Reset tenant with token from set_tenant_id().
 get_tenant_id()                 Read current tenant from context.
 lumen_tenant(tenant_id)         Context manager — resets on exit.
 get_span_tenant(span)           Read tenant written by processor.
@@ -49,6 +50,18 @@ _MAX_TENANT_ID_LEN = 128  # cap tenant_id length to bound Redis keyspace cardina
 # Public helpers
 # ---------------------------------------------------------------------------
 
+def sanitize_tenant_id(tenant_id: object) -> str:
+    """Normalize tenant ids before they reach spans, logs, or stream keys."""
+    if not isinstance(tenant_id, str):
+        tenant_id = str(tenant_id)
+    cleaned = "".join(ch for ch in tenant_id if ch.isprintable()).strip()
+    if len(cleaned) > _MAX_TENANT_ID_LEN:
+        cleaned = cleaned[:_MAX_TENANT_ID_LEN]
+    if cleaned != tenant_id.strip():
+        logger.warning("tenant_id sanitized (control chars removed or length capped)")
+    return cleaned
+
+
 def set_tenant_id(tenant_id: str) -> Token:
     """
     Set the tenant for the current async context.
@@ -61,19 +74,14 @@ def set_tenant_id(tenant_id: str) -> Token:
         try:
             ...
         finally:
-            _current_tenant.reset(token)
+            reset_tenant_id(token)
     """
-    if not isinstance(tenant_id, str):
-        tenant_id = str(tenant_id)
-    # Drop control characters (newlines/tabs/null) that would corrupt Redis stream
-    # keys or log lines, then cap length to bound keyspace cardinality. Valid ids
-    # are untouched.
-    cleaned = "".join(ch for ch in tenant_id if ch.isprintable()).strip()
-    if len(cleaned) > _MAX_TENANT_ID_LEN:
-        cleaned = cleaned[:_MAX_TENANT_ID_LEN]
-    if cleaned != tenant_id.strip():
-        logger.warning("tenant_id sanitized (control chars removed or length capped)")
-    return _current_tenant.set(cleaned)
+    return _current_tenant.set(sanitize_tenant_id(tenant_id))
+
+
+def reset_tenant_id(token: Token) -> None:
+    """Reset tenant context using a token returned by ``set_tenant_id``."""
+    _current_tenant.reset(token)
 
 
 # Keep old name as an alias for backwards compatibility
@@ -108,7 +116,7 @@ def lumen_tenant(tenant_id: str) -> Generator[None, None, None]:
     try:
         yield
     finally:
-        _current_tenant.reset(token)
+        reset_tenant_id(token)
 
 
 def get_span_tenant(span: ReadableSpan) -> str:
@@ -186,17 +194,23 @@ class TenantSpanProcessor(SpanProcessor):
                         or span attributes. Defaults to "default".
     """
 
-    def __init__(self, default_tenant: str = "default") -> None:
+    def __init__(self, default_tenant: str = "default", runtime=None) -> None:
         if not default_tenant or not default_tenant.strip():
             raise ValueError("default_tenant must be a non-empty string")
-        self._default_tenant = default_tenant.strip()
+        self._default_tenant = sanitize_tenant_id(default_tenant)
+        self._runtime = runtime
+
+    def _fallback_tenant(self) -> str:
+        if self._runtime is not None:
+            return sanitize_tenant_id(self._runtime.default_tenant)
+        return self._default_tenant
 
     def on_start(self, span, parent_context=None) -> None:
         """Tag span at start so child spans inherit the tenant attribute."""
         try:
             if not getattr(span, "is_recording", lambda: True)():
                 return
-            tenant = get_tenant_id() or self._default_tenant
+            tenant = get_tenant_id() or self._fallback_tenant()
             span.set_attribute(LumenAIAttributes.TENANT_ID, tenant)
         except Exception:
             logger.debug("TenantSpanProcessor.on_start failed silently", exc_info=True)
@@ -211,9 +225,11 @@ class TenantSpanProcessor(SpanProcessor):
             # span that ENDS in another tenant's context be re-attributed to it
             # (cross-tenant cost/metadata leak — see SECURITY.md).
             tenant = (
-                _attribute_to_str(attrs.get(LumenAIAttributes.TENANT_ID, ""))
+                sanitize_tenant_id(
+                    _attribute_to_str(attrs.get(LumenAIAttributes.TENANT_ID, ""))
+                )
                 or get_tenant_id()
-                or self._default_tenant
+                or self._fallback_tenant()
             )
 
             if not attrs.get(LumenAIAttributes.TENANT_ID):

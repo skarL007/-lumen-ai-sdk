@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>LumenAI SDK Audit Dashboard</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #17202a;
+      --muted: #667085;
+      --line: #d7dce2;
+      --blue: #2563eb;
+      --green: #15803d;
+      --amber: #b45309;
+      --red: #b91c1c;
+      --violet: #6d28d9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.45;
+      letter-spacing: 0;
+    }
+    header {
+      background: #101827;
+      color: #fff;
+      padding: 28px 32px 22px;
+      border-bottom: 4px solid var(--blue);
+    }
+    .wrap { max-width: 1280px; margin: 0 auto; }
+    .topline { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+    h1 { margin: 0 0 8px; font-size: 30px; line-height: 1.1; font-weight: 760; }
+    h2 { margin: 0 0 14px; font-size: 18px; }
+    h3 { margin: 0 0 8px; font-size: 15px; }
+    .sub { color: #c8d2e0; max-width: 760px; }
+    .scorebox {
+      display: grid;
+      grid-template-columns: 110px 170px;
+      gap: 10px;
+      align-items: center;
+      min-width: 300px;
+    }
+    .score {
+      width: 104px;
+      height: 104px;
+      border: 8px solid #60a5fa;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 30px;
+      font-weight: 800;
+      background: #0f172a;
+    }
+    main { padding: 24px 32px 40px; }
+    .grid { display: grid; gap: 16px; }
+    .cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    section { margin-top: 18px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+    }
+    .metric .label { color: var(--muted); font-size: 12px; text-transform: uppercase; font-weight: 700; }
+    .metric .value { font-size: 24px; font-weight: 780; margin-top: 5px; }
+    .bar { height: 9px; background: #e5e7eb; border-radius: 99px; overflow: hidden; margin-top: 10px; }
+    .bar span { display: block; height: 100%; background: var(--blue); }
+    .status-pass { color: var(--green); font-weight: 760; }
+    .status-fail { color: var(--red); font-weight: 760; }
+    .status-skip { color: var(--amber); font-weight: 760; }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    button {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 6px;
+      min-height: 34px;
+      padding: 7px 11px;
+      cursor: pointer;
+      font: inherit;
+    }
+    button.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid var(--line); padding: 10px 8px; text-align: left; vertical-align: top; }
+    th { font-size: 12px; text-transform: uppercase; color: var(--muted); background: #f8fafc; }
+    .sev { display: inline-block; min-width: 34px; text-align: center; border-radius: 5px; padding: 3px 6px; color: #fff; font-weight: 760; }
+    .P0 { background: #7f1d1d; }
+    .P1 { background: var(--red); }
+    .P2 { background: var(--amber); }
+    .P3 { background: var(--violet); }
+    code { background: #eef2f7; padding: 2px 5px; border-radius: 4px; }
+    .muted { color: var(--muted); }
+    .mono { font-family: Consolas, ui-monospace, monospace; }
+    .finding-title { font-weight: 760; }
+    .evidence { color: var(--muted); font-size: 12px; margin-top: 5px; }
+    .probe-pass { border-left: 4px solid var(--green); }
+    .probe-fail { border-left: 4px solid var(--red); }
+    .scroll { overflow-x: auto; }
+    footer { color: var(--muted); padding: 20px 0 0; }
+    @media (max-width: 900px) {
+      header, main { padding-left: 18px; padding-right: 18px; }
+      .cols-4, .cols-3, .cols-2 { grid-template-columns: 1fr; }
+      .scorebox { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <script type="application/json" id="audit-data">{"generated_at": "2026-07-07T23:41:24.492265+00:00", "repo": {"branch": "codex/lumen-audit-fixes", "commit": "fd364b3", "status": "## codex/lumen-audit-fixes\n M .github/workflows/benchmark.yml\n M .github/workflows/changelog.yml\n M .github/workflows/ci.yml\n M .github/workflows/linear-sync.yml\n M .github/workflows/publish.yml\n M README.md\n M examples/celery-background-tasks/main.py\n M examples/custom-exporter/main.py\n M examples/fastapi-quickstart/main.py\n M examples/langchain-cost-tracking/main.py\n M packages/lumen-ai-celery/pyproject.toml\n M packages/lumen-ai-celery/src/lumen_ai_celery/instrumentor.py\n M packages/lumen-ai-core/src/lumen_ai/__init__.py\n M packages/lumen-ai-core/src/lumen_ai/models.py\n M packages/lumen-ai-core/src/lumen_ai/processors/__init__.py\n M packages/lumen-ai-core/src/lumen_ai/processors/cost.py\n M packages/lumen-ai-core/src/lumen_ai/processors/normalizer.py\n M packages/lumen-ai-core/src/lumen_ai/processors/tenant.py\n M packages/lumen-ai-core/src/lumen_ai/providers.py\n M packages/lumen-ai-core/src/lumen_ai/sdk.py\n M packages/lumen-ai-core/src/lumen_ai/tracer.py\n M packages/lumen-ai-openlit/pyproject.toml\n M scripts/release_gate.py\n M tests/test_async_redis_exporter.py\n M tests/test_celery_lifecycle.py\n M tests/test_lifecycle.py\n M tests/test_public_api_contract.py\n M tests/test_tenant_sanitize.py\n?? CODEX.md\n?? harness/\n?? packages/lumen-ai-core/src/lumen_ai/runtime.py\n?? tests/test_event_metadata_fallback.py\n?? tests/test_examples_contract.py\n?? tests/test_models_tenant_constraints.py", "remote": "https://github.com/skarL007/-lumen-ai-sdk.git"}, "environment": {"python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]", "executable": "<repo>\\.venv\\Scripts\\python.exe", "platform": "win32"}, "inventory": {"file_count": 199, "python_files": 56, "test_files": 27, "workflow_files": 5, "example_dirs": 6, "claude_agents": 6, "harness_agents": 4, "packages": [{"name": "LumenAI-sdk", "version": "0.1.4", "requires_python": ">=3.11", "dependencies": []}, {"name": "lumen-ai-core", "version": "0.1.4", "requires_python": ">=3.11", "dependencies": ["opentelemetry-api>=1.30.0", "opentelemetry-sdk>=1.30.0", "opentelemetry-instrumentation>=0.40b0", "redis>=5.0.0", "sqlalchemy>=2.0.0"]}, {"name": "lumen-ai-celery", "version": "0.1.4", "requires_python": ">=3.11", "dependencies": ["lumen-ai-core>=0.1.4", "celery>=5.3.0", "opentelemetry-instrumentation-celery>=0.40b0"]}, {"name": "lumen-ai-openlit", "version": "0.1.4", "requires_python": ">=3.11", "dependencies": ["lumen-ai-core>=0.1.4", "openlit>=1.0"]}]}, "pypi_versions": [{"package": "lumen-ai-core", "latest": "0.1.3", "status": "pass", "summary": "Passed", "stdout_tail": "lumen-ai-core (0.1.3)\nAvailable versions: 0.1.3, 0.1.2, 0.1.1, 0.1.0\n  INSTALLED: 0.1.4\n  LATEST:    0.1.3"}, {"package": "lumen-ai-celery", "latest": "0.1.3", "status": "pass", "summary": "Passed", "stdout_tail": "lumen-ai-celery (0.1.3)\nAvailable versions: 0.1.3, 0.1.2, 0.1.1, 0.1.0\n  INSTALLED: 0.1.4\n  LATEST:    0.1.3"}, {"package": "lumen-ai-openlit", "latest": "0.1.3", "status": "pass", "summary": "Passed", "stdout_tail": "lumen-ai-openlit (0.1.3)\nAvailable versions: 0.1.3, 0.1.2, 0.1.1, 0.1.0\n  INSTALLED: 0.1.4\n  LATEST:    0.1.3"}], "gates": [{"name": "pytest", "command": "<repo>\\.venv\\Scripts\\python.exe -m pytest tests -q", "exit_code": 0, "status": "pass", "duration_seconds": 3.89, "stdout_tail": ".....ssss............................................................... [ 67%]\n...................................                                      [100%]\n============================== warnings summary ===============================\n.venv\\Lib\\site-packages\\fastapi\\testclient.py:1\n  <repo>\\.venv\\Lib\\site-packages\\fastapi\\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n103 passed, 4 skipped, 1 warning in 2.91s", "stderr_tail": "", "summary": "103 passed, 4 skipped, 1 warning"}, {"name": "ruff", "command": "<repo>\\.venv\\Scripts\\python.exe -m ruff check packages/lumen-ai-core/src packages/lumen-ai-celery/src packages/lumen-ai-openlit/src --select E,F,W,I --ignore E501", "exit_code": 0, "status": "pass", "duration_seconds": 0.12, "stdout_tail": "All checks passed!", "stderr_tail": "", "summary": "All checks passed"}, {"name": "mypy", "command": "<repo>\\.venv\\Scripts\\python.exe -m mypy packages/lumen-ai-core/src/lumen_ai --ignore-missing-imports --no-error-summary", "exit_code": 0, "status": "pass", "duration_seconds": 0.6, "stdout_tail": "", "stderr_tail": "", "summary": "No type errors"}, {"name": "pip-check", "command": "<repo>\\.venv\\Scripts\\python.exe -m pip check", "exit_code": 0, "status": "pass", "duration_seconds": 0.78, "stdout_tail": "No broken requirements found.", "stderr_tail": "", "summary": "No broken requirements"}, {"name": "pip-audit", "command": "<repo>\\.venv\\Scripts\\python.exe -m pip_audit", "exit_code": 0, "status": "pass", "duration_seconds": 4.29, "stdout_tail": "Name             Skip Reason\n---------------- -------------------------------------------------------------------------------\nlumen-ai-celery  Dependency not found on PyPI and could not be audited: lumen-ai-celery (0.1.4)\nlumen-ai-core    Dependency not found on PyPI and could not be audited: lumen-ai-core (0.1.4)\nlumen-ai-openlit Dependency not found on PyPI and could not be audited: lumen-ai-openlit (0.1.4)", "stderr_tail": "No known vulnerabilities found", "summary": "No known vulnerabilities found"}, {"name": "release-gate", "command": "<repo>\\.venv\\Scripts\\python.exe scripts/release_gate.py", "exit_code": 0, "status": "pass", "duration_seconds": 232.51, "stdout_tail": "ation-httpx, opentelemetry-instrumentation-celery, opentelemetry-instrumentation-asgi, opentelemetry-instrumentation-aiohttp-client, opentelemetry-exporter-otlp-proto-http, opentelemetry-exporter-otlp-proto-grpc, lumen-ai-core, boto3, opentelemetry-instrumentation-starlette, opentelemetry-instrumentation-pyramid, opentelemetry-instrumentation-flask, opentelemetry-instrumentation-fastapi, opentelemetry-instrumentation-falcon, opentelemetry-instrumentation-django, opentelemetry-exporter-otlp, lumen-ai-celery, openlit, lumen-ai-openlit\n\nSuccessfully installed amqp-5.3.1 annotated-types-0.7.0 anthropic-0.116.0 anyio-4.14.1 asgiref-3.11.1 billiard-4.2.4 boto3-1.43.42 botocore-1.43.42 celery-5.6.3 certifi-2026.6.17 charset_normalizer-3.4.9 click-8.4.2 click-didyoumean-0.3.1 click-plugins-1.1.1.2 click-repl-0.3.0 colorama-0.4.6 distro-1.9.0 docstring-parser-0.18.0 googleapis-common-protos-1.75.0 greenlet-3.5.3 grpcio-1.81.1 h11-0.16.0 httpcore-1.0.9 httpx-0.28.1 idna-3.18 jiter-0.16.0 jmespath-1.1.0 kombu-5.6.2 lumen-ai-celery-0.1.4 lumen-ai-core-0.1.4 lumen-ai-openlit-0.1.4 openai-2.44.0 openlit-1.42.0 opentelemetry-api-1.43.0 opentelemetry-exporter-otlp-1.43.0 opentelemetry-exporter-otlp-proto-common-1.43.0 opentelemetry-exporter-otlp-proto-grpc-1.43.0 opentelemetry-exporter-otlp-proto-http-1.43.0 opentelemetry-instrumentation-0.64b0 opentelemetry-instrumentation-aiohttp-client-0.64b0 opentelemetry-instrumentation-asgi-0.64b0 opentelemetry-instrumentation-celery-0.64b0 opentelemetry-instrumentation-django-0.64b0 opentelemetry-instrumentation-falcon-0.64b0 opentelemetry-instrumentation-fastapi-0.64b0 opentelemetry-instrumentation-flask-0.64b0 opentelemetry-instrumentation-httpx-0.64b0 opentelemetry-instrumentation-pyramid-0.64b0 opentelemetry-instrumentation-requests-0.64b0 opentelemetry-instrumentation-starlette-0.64b0 opentelemetry-instrumentation-tornado-0.64b0 opentelemetry-instrumentation-urllib-0.64b0 opentelemetry-instrumentation-urllib3-0.64b0 opentelemetry-instrumentation-wsgi-0.64b0 opentelemetry-proto-1.43.0 opentelemetry-sdk-1.43.0 opentelemetry-semantic-conventions-0.64b0 opentelemetry-util-http-0.64b0 packaging-26.2 prompt-toolkit-3.0.52 protobuf-7.35.1 pydantic-2.13.4 pydantic-core-2.46.4 python-dateutil-2.9.0.post0 redis-8.0.1 requests-2.34.2 s3transfer-0.19.0 schedule-1.2.2 six-1.17.0 sniffio-1.3.1 sqlalchemy-2.0.51 tqdm-4.68.4 typing-extensions-4.16.0 typing-inspection-0.4.2 tzdata-2026.2 tzlocal-5.4.4 urllib3-2.7.0 vine-5.1.0 wcwidth-0.8.2 wrapt-2.2.2 xmltodict-0.15.1\n\n$ <temp>\\lumen-release-gate-d01vh5hf\\sdist-venv\\Scripts\\python.exe -m pip check\nNo broken requirements found.\n\n$ <temp>\\lumen-release-gate-d01vh5hf\\sdist-venv\\Scripts\\python.exe -c import lumen_ai; import lumen_ai.models; from lumen_ai import LumenAI, JsonlExporter, lumen_tenant, reset_tenant_id; from lumen_ai_celery import CeleryInstrumentor; from lumen_ai_openlit import OpenLITBridge; print('Release gate sdist import OK')\nRelease gate sdist import OK\n\nRelease gate OK", "stderr_tail": "* Creating isolated environment: venv+pip...\n* Installing packages in isolated environment:\n  - hatchling\n* Getting build dependencies for sdist...\n* Building sdist...\n* Building wheel from sdist\n* Creating isolated environment: venv+pip...\n* Installing packages in isolated environment:\n  - hatchling\n* Getting build dependencies for wheel...\n* Building wheel...\n* Creating isolated environment: venv+pip...\n* Installing packages in isolated environment:\n  - hatchling\n* Getting build dependencies for sdist...\n* Building sdist...\n* Building wheel from sdist\n* Creating isolated environment: venv+pip...\n* Installing packages in isolated environment:\n  - hatchling\n* Getting build dependencies for wheel...\n* Building wheel...\n* Creating isolated environment: venv+pip...\n* Installing packages in isolated environment:\n  - hatchling\n* Getting build dependencies for sdist...\n* Building sdist...\n* Building wheel from sdist\n* Creating isolated environment: venv+pip...\n* Installing packages in isolated environment:\n  - hatchling\n* Getting build dependencies for wheel...\n* Building wheel...", "summary": "Release gate OK"}], "probes": [{"probe": "external_provider_reinit", "status": "pass", "first_events_before_close": 1, "first_events_after_close": 0, "second_events": 1, "finding": "Second init exported to the new exporter", "command_status": "pass", "duration_seconds": 0.38}, {"probe": "openinference_metadata", "status": "pass", "event_count": 1, "observed_model": "gpt-4o-mini", "observed_tokens_in": 1200, "observed_tokens_out": 300, "finding": "OpenInference-only metadata was preserved", "command_status": "pass", "duration_seconds": 0.4}, {"probe": "tenant_attr_sanitize", "status": "pass", "raw_tenant_repr": "'ac\\nme\\t'", "observed_tenant_repr": "'acme'", "event_count": 1, "finding": "Tenant span attribute was sanitized", "command_status": "pass", "duration_seconds": 0.37}], "findings": [{"id": "REL-101", "severity": "P2", "aspect": "Release status", "title": "Source is 0.1.4 but PyPI can remain at 0.1.3 until publish is executed", "evidence": ["README.md: Quick Start install note", "harness report pypi_versions", ".github/workflows/publish.yml: Trusted Publishing path is prepared"], "recommendation": "After review, create tag v0.1.4 and publish through the hardened Trusted Publishing workflow; keep git/local install guidance until PyPI is current."}, {"id": "DB-101", "severity": "P3", "aspect": "Storage migration", "title": "Tenant-scoped constraints protect new schemas only", "evidence": ["packages/lumen-ai-core/src/lumen_ai/models.py", "README.md: Storage Schema Note"], "recommendation": "Add an Alembic migration in the next storage-focused cycle before applying these constraints to existing production databases."}, {"id": "AUDIT-101", "severity": "P3", "aspect": "Dependency audit", "title": "pip-audit cannot audit unpublished local package names themselves", "evidence": ["harness gate pip-audit stdout", "source packages install as 0.1.4"], "recommendation": "Treat the current audit as dependency coverage; after publishing 0.1.4, rerun pip-audit against PyPI-installed artifacts."}], "aspects": [{"name": "Tests and local gate", "score": 94, "status": "Strong", "note": "Pytest, Ruff, mypy, pip check, pip-audit, and release gate are evaluated locally."}, {"name": "Runtime correctness", "score": 94, "status": "Strong", "note": "External-provider reinit, OpenInference metadata, and tenant-attribute probes are regression gates."}, {"name": "Tenant isolation", "score": 90, "status": "Strong", "note": "Tenant IDs share one sanitization helper across context, span attributes, Celery kwargs, and exporters."}, {"name": "Release safety", "score": 88, "status": "Hardened", "note": "Publish now depends on release_gate, tag/version validation, twine checks, and Trusted Publishing."}, {"name": "Supply chain", "score": 86, "status": "Hardened", "note": "GitHub Actions and reusable workflows are pinned by SHA; dependency audit is blocking."}, {"name": "Docs and adoption", "score": 86, "status": "Improved", "note": "README, FastAPI, Celery, LangChain, and custom exporter examples now match the implemented API."}, {"name": "Harness readiness", "score": 94, "status": "Strong", "note": "Codex context, agents, skill, MCP config, probes, reports, and dashboard are present."}], "overall_score": 90}</script>
+  <header>
+    <div class="wrap topline">
+      <div>
+        <h1>LumenAI SDK Audit Dashboard</h1>
+        <div class="sub" id="repoLine"></div>
+      </div>
+      <div class="scorebox">
+        <div class="score" id="overallScore"></div>
+        <div>
+          <div class="muted">Overall engineering score</div>
+          <div id="generatedAt"></div>
+          <div class="muted mono" id="commitLine"></div>
+        </div>
+      </div>
+    </div>
+  </header>
+  <main>
+    <div class="wrap">
+      <section class="grid cols-4" id="metrics"></section>
+      <section>
+        <h2>Aspect Evaluation</h2>
+        <div class="grid cols-3" id="aspects"></div>
+      </section>
+      <section class="grid cols-2">
+        <div class="panel">
+          <h2>Validation Gates</h2>
+          <div class="scroll"><table id="gates"></table></div>
+        </div>
+        <div class="panel">
+          <h2>Runtime Probes</h2>
+          <div class="grid" id="probes"></div>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>Findings</h2>
+        <div class="filters" id="filters"></div>
+        <div class="scroll"><table id="findings"></table></div>
+      </section>
+      <section class="grid cols-2">
+        <div class="panel">
+          <h2>Package And PyPI Parity</h2>
+          <div class="scroll"><table id="packages"></table></div>
+        </div>
+        <div class="panel">
+          <h2>Harness Assets</h2>
+          <div id="assets"></div>
+        </div>
+      </section>
+      <footer>Generated by <code>harness/scripts/collect_audit.py</code>.</footer>
+    </div>
+  </main>
+  <script>
+    const data = JSON.parse(document.getElementById('audit-data').textContent);
+    const $ = (id) => document.getElementById(id);
+    const sevOrder = ['ALL', 'P0', 'P1', 'P2', 'P3'];
+    let activeSeverity = 'ALL';
+
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function statusClass(status) {
+      if (status === 'pass') return 'status-pass';
+      if (status === 'fail') return 'status-fail';
+      return 'status-skip';
+    }
+    function renderMetrics() {
+      const inv = data.inventory;
+      const counts = [
+        ['Python files', inv.python_files],
+        ['Tests', inv.test_files],
+        ['Workflows', inv.workflow_files],
+        ['Findings', data.findings.length],
+      ];
+      $('metrics').innerHTML = counts.map(([label, value]) => `<div class="panel metric"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div></div>`).join('');
+    }
+    function renderAspects() {
+      $('aspects').innerHTML = data.aspects.map(a => `<div class="panel"><h3>${esc(a.name)} <span class="muted">${a.score}/100</span></h3><div class="muted">${esc(a.status)}</div><div class="bar"><span style="width:${a.score}%"></span></div><p>${esc(a.note)}</p></div>`).join('');
+    }
+    function renderGates() {
+      $('gates').innerHTML = '<thead><tr><th>Gate</th><th>Status</th><th>Summary</th><th>Seconds</th></tr></thead><tbody>' +
+        data.gates.map(g => `<tr><td class="mono">${esc(g.name)}</td><td class="${statusClass(g.status)}">${esc(g.status)}</td><td>${esc(g.summary)}</td><td>${esc(g.duration_seconds)}</td></tr>`).join('') +
+        '</tbody>';
+    }
+    function renderProbes() {
+      $('probes').innerHTML = data.probes.map(p => `<div class="panel probe-${esc(p.status)}"><h3>${esc(p.probe)}</h3><div class="${statusClass(p.status)}">${esc(p.status)}</div><p>${esc(p.finding)}</p><div class="muted mono">${esc(JSON.stringify(p))}</div></div>`).join('');
+    }
+    function renderFilters() {
+      $('filters').innerHTML = sevOrder.map(s => `<button data-sev="${s}" class="${s === activeSeverity ? 'active' : ''}">${s}</button>`).join('');
+      $('filters').querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+        activeSeverity = btn.dataset.sev;
+        renderFilters();
+        renderFindings();
+      }));
+    }
+    function renderFindings() {
+      const rows = data.findings.filter(f => activeSeverity === 'ALL' || f.severity === activeSeverity);
+      $('findings').innerHTML = '<thead><tr><th>Severity</th><th>Aspect</th><th>Finding</th><th>Recommendation</th></tr></thead><tbody>' +
+        rows.map(f => `<tr><td><span class="sev ${esc(f.severity)}">${esc(f.severity)}</span></td><td>${esc(f.aspect)}</td><td><div class="finding-title">${esc(f.id)}: ${esc(f.title)}</div><div class="evidence">${f.evidence.map(esc).join('<br>')}</div></td><td>${esc(f.recommendation)}</td></tr>`).join('') +
+        '</tbody>';
+    }
+    function renderPackages() {
+      const byName = Object.fromEntries((data.pypi_versions || []).map(p => [p.package, p.latest]));
+      $('packages').innerHTML = '<thead><tr><th>Package</th><th>Source</th><th>Requires Python</th><th>PyPI latest</th></tr></thead><tbody>' +
+        data.inventory.packages.map(p => `<tr><td class="mono">${esc(p.name)}</td><td>${esc(p.version)}</td><td>${esc(p.requires_python)}</td><td>${esc(byName[p.name] || 'n/a')}</td></tr>`).join('') +
+        '</tbody>';
+    }
+    function renderAssets() {
+      const items = [
+        'CODEX.md',
+        'harness/context/project-context.md',
+        'harness/agents/*.md',
+        'harness/skills/lumen-ai-audit/SKILL.md',
+        'harness/mcp/lumen-audit.mcp.json',
+        'harness/probes/*.py',
+        'harness/reports/audit-data.json',
+      ];
+      $('assets').innerHTML = items.map(i => `<p><code>${esc(i)}</code></p>`).join('');
+    }
+    $('overallScore').textContent = data.overall_score;
+    $('repoLine').textContent = `${data.repo.remote} on branch ${data.repo.branch}`;
+    $('generatedAt').textContent = data.generated_at;
+    $('commitLine').textContent = `commit ${data.repo.commit}`;
+    renderMetrics();
+    renderAspects();
+    renderGates();
+    renderProbes();
+    renderFilters();
+    renderFindings();
+    renderPackages();
+    renderAssets();
+  </script>
+</body>
+</html>

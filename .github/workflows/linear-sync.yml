@@ -12,6 +12,9 @@ jobs:
     # cannot reach the private skar-ops reusable workflow, so without this guard
     # every fork push / PR fails this job with a red X.
     if: github.repository == 'skarL007/-lumen-ai-sdk'
-    uses: skarL007/skar-ops/.github/workflows/linear-sync-reusable.yml@main
+    uses: skarL007/skar-ops/.github/workflows/linear-sync-reusable.yml@2a7baadac44b5d5cceff1eba134679cd6aa5bda3
+    permissions:
+      contents: read
+      pull-requests: read
     secrets:
       LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}

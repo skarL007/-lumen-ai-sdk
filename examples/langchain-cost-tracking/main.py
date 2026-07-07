@@ -2,7 +2,7 @@
 LumenAI + LangChain - automatic cost tracking for every LLM call.
 
 Prerequisites:
-    pip install lumen-ai-core langchain-openai opentelemetry-instrumentation-openai
+    pip install lumen-ai-core lumen-ai-openlit openlit langchain-openai
 
 Usage:
     export OPENAI_API_KEY=<your-key>
@@ -10,14 +10,15 @@ Usage:
 """
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
-from lumen_ai import LumenAI
-from lumen_ai.processors.tenant import lumen_tenant
+from lumen_ai import LumenAI, lumen_tenant
+from lumen_ai_openlit import OpenLITBridge
 
-# 1. Initialize LumenAI (once, at startup)
+# 1. Initialize LumenAI and activate provider instrumentation once at startup.
 LumenAI.init(
     service_name="langchain-app",
     default_tenant="my-company",
     redis_url="redis://localhost:6379/0",
+    instrumentors=[OpenLITBridge()],
 )
 
 # 2. Use LangChain as usual; LumenAI tracks cost automatically

@@ -18,8 +18,6 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(__file__), "..", "packages", "lumen-ai-core", "src")
 )
 
-import pytest
-
 from lumen_ai.providers import AsyncRedisExporter
 
 
@@ -78,6 +76,22 @@ def test_shutdown_flushes_remaining_and_stops_thread():
     exp.shutdown()
 
     assert recorded == [[("acme", {"id": "z"})]]
+    assert not exp._thread.is_alive()
+
+
+def test_shutdown_waits_for_in_flight_autoflush():
+    exp = AsyncRedisExporter("redis://localhost:6379/0", max_buffer=1)
+    recorded = []
+
+    async def slow_write(events):
+        await asyncio.sleep(0.05)
+        recorded.append(list(events))
+
+    exp._write_batch = slow_write
+    exp.export("acme", {"id": "slow"})
+    exp.shutdown()
+
+    assert recorded == [[("acme", {"id": "slow"})]]
     assert not exp._thread.is_alive()
 
 

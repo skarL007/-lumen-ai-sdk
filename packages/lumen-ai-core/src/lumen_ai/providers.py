@@ -15,6 +15,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from lumen_ai.processors.tenant import sanitize_tenant_id
 from lumen_ai.schema.event_types import LumenAIEvent
 from lumen_ai.schema.semconv import match_model_pricing
 
@@ -131,6 +132,7 @@ class RedisExporter(BaseLumenAIExporter):
         self._stream_prefix = stream_prefix
 
     def export(self, tenant_id: str, event: LumenAIEvent) -> None:
+        tenant_id = sanitize_tenant_id(tenant_id)
         stream_key = f"{self._stream_prefix}:{tenant_id}"
         try:
             self._redis.xadd(
@@ -205,6 +207,7 @@ class AsyncRedisExporter(BaseLumenAIExporter):
         self._lock = threading.Lock()
         self._redis: Optional[Any] = None
         self._closed = False
+        self._futures: set[Any] = set()
         # Dedicated event loop in a daemon thread; all Redis I/O runs here so the
         # loop-bound client is never shared across loops.
         self._loop = asyncio.new_event_loop()
@@ -225,6 +228,7 @@ class AsyncRedisExporter(BaseLumenAIExporter):
 
     def export(self, tenant_id: str, event: LumenAIEvent) -> None:
         """Buffer an event; schedule a background flush when the buffer is full."""
+        tenant_id = sanitize_tenant_id(tenant_id)
         to_flush: Optional[List[Tuple[str, LumenAIEvent]]] = None
         with self._lock:
             if self._closed:
@@ -240,9 +244,16 @@ class AsyncRedisExporter(BaseLumenAIExporter):
     def _schedule(self, coro: Any) -> None:
         """Submit a coroutine to the background loop without blocking."""
         try:
-            asyncio.run_coroutine_threadsafe(coro, self._loop)
+            future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+            with self._lock:
+                self._futures.add(future)
+            future.add_done_callback(self._discard_future)
         except RuntimeError:
             coro.close()  # loop already stopped (shutting down) — drop quietly
+
+    def _discard_future(self, future: Any) -> None:
+        with self._lock:
+            self._futures.discard(future)
 
     def _drain(self) -> List[Tuple[str, LumenAIEvent]]:
         with self._lock:
@@ -256,6 +267,9 @@ class AsyncRedisExporter(BaseLumenAIExporter):
         if not events:
             return
         fut = asyncio.run_coroutine_threadsafe(self._write_batch(events), self._loop)
+        with self._lock:
+            self._futures.add(fut)
+        fut.add_done_callback(self._discard_future)
         await asyncio.wrap_future(fut)
 
     async def _write_batch(self, events: List[Tuple[str, LumenAIEvent]]) -> None:
@@ -281,10 +295,11 @@ class AsyncRedisExporter(BaseLumenAIExporter):
             self._closed = True
             events = self._buffer
             self._buffer = []
+            futures = list(self._futures)
         if not self._loop.is_closed():
             try:
                 fut = asyncio.run_coroutine_threadsafe(
-                    self._shutdown_coro(events), self._loop
+                    self._shutdown_coro(events, futures), self._loop
                 )
                 fut.result(timeout=5)
             except Exception as e:
@@ -294,7 +309,16 @@ class AsyncRedisExporter(BaseLumenAIExporter):
         if not self._thread.is_alive() and not self._loop.is_closed():
             self._loop.close()
 
-    async def _shutdown_coro(self, events: List[Tuple[str, LumenAIEvent]]) -> None:
+    async def _shutdown_coro(
+        self,
+        events: List[Tuple[str, LumenAIEvent]],
+        futures: List[Any],
+    ) -> None:
+        for future in futures:
+            try:
+                await asyncio.wrap_future(future)
+            except Exception:
+                logger.debug("AsyncRedisExporter in-flight flush raised", exc_info=True)
         if events:
             await self._write_batch(events)
         if self._redis is not None:
