@@ -68,4 +68,3 @@ def test_unknown_priced_model_preserves_metadata_with_zero_cost():
     assert event["tokens_in"] == 10
     assert event["tokens_out"] == 2
     assert event["cost_usd"] == 0.0
-

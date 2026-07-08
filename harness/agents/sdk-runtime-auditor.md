@@ -21,4 +21,3 @@ Required evidence:
 - targeted pytest where available
 - a focused repro under `harness/probes/` for any runtime bug
 - file and line references in findings
-

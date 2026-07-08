@@ -46,4 +46,3 @@ Summaries should separate:
 - reproduced bugs
 - static risk findings
 - skipped or environment-limited checks
-

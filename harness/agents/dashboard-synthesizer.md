@@ -15,4 +15,3 @@ Required evidence:
 - generated `harness/reports/audit-data.json`
 - generated `harness/dashboard/index.html`
 - final path to the dashboard
-

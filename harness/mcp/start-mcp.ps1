@@ -17,4 +17,3 @@ if (Test-Path -LiteralPath $VenvPython) {
 }
 
 & $Python (Join-Path $RepoRoot "harness\mcp\lumen_audit_mcp.py")
-

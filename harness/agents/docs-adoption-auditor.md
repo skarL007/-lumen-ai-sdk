@@ -16,4 +16,3 @@ Required evidence:
 - file and line references
 - command or smoke result when an example is claimed runnable
 - dashboard rows for example readiness
-

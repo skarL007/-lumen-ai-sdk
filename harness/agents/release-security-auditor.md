@@ -16,4 +16,3 @@ Required evidence:
 - workflow file and line references
 - command output for release gate, `pip check`, and `pip-audit`
 - explicit separation between passing local gates and release process gaps
-
