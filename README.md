@@ -164,6 +164,25 @@ LUMEN_RUN_BENCHMARKS=1 python -m pytest tests/test_benchmark.py -v
 
 The GitHub Actions `Benchmarks` workflow runs the same benchmark suite on demand and weekly, separate from the correctness CI.
 
+## Current Validation Status
+
+The audited `0.1.4` source currently has a complete local validation pass:
+
+| Gate | Status |
+|---|---|
+| `pytest tests -q` | `103 passed, 4 skipped, 1 warning` |
+| Ruff package lint | pass |
+| Mypy core type check | pass |
+| `scripts/release_gate.py` | pass |
+| `harness/scripts/run-audit.ps1 -Full` | pass, dashboard score `90` |
+| Runtime probes | pass |
+| Playwright dashboard check | pass, `0` console errors |
+
+Remote GitHub Actions are currently blocked by account billing before runners
+start, so the local release gate and audit dashboard are the source of validation
+evidence until billing is restored. Do not publish `0.1.4` until remote checks
+can run again. See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+
 ## Roadmap
 
 - v0.1.4: runtime lifecycle fixes, tenant sanitization, release hardening, and updated examples.

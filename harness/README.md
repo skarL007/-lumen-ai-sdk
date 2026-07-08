@@ -33,3 +33,9 @@ It provides:
 ## Scope
 
 The harness captures the current risk profile and makes future fixes measurable.
+
+## Remote CI Note
+
+When GitHub Actions runners are unavailable, the full local harness is the
+temporary release evidence. Keep the PR as draft or clearly mark the remote CI
+blocker until Actions can start jobs again.
