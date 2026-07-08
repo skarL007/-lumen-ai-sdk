@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-07-08T01:10:07.117071+00:00",
+  "generated_at": "2026-07-08T01:26:05.135460+00:00",
   "repo": {
     "branch": "codex/lumen-audit-fixes",
-    "commit": "e6a5d81",
-    "status": "## codex/lumen-audit-fixes...origin/codex/lumen-audit-fixes\n M harness/agents/dashboard-synthesizer.md\n M harness/agents/docs-adoption-auditor.md\n M harness/agents/release-security-auditor.md\n M harness/agents/sdk-runtime-auditor.md\n M harness/dashboard/index.html\n M harness/mcp/lumen_audit_mcp.py\n M harness/mcp/start-mcp.ps1\n M harness/probes/probe_external_provider_reinit.py\n M harness/probes/probe_openinference_metadata.py\n M harness/probes/probe_tenant_attr_sanitize.py\n M harness/reports/audit-data.json\n M harness/reports/dashboard-screenshot.png\n M harness/skills/lumen-ai-audit/SKILL.md\n M packages/lumen-ai-core/src/lumen_ai/providers.py\n M tests/test_async_redis_exporter.py\n M tests/test_event_metadata_fallback.py",
+    "commit": "cfa7aab",
+    "status": "## codex/lumen-audit-fixes...origin/codex/lumen-audit-fixes [ahead 1]",
     "remote": "https://github.com/skarL007/-lumen-ai-sdk.git"
   },
   "environment": {
@@ -88,8 +88,8 @@
       "command": "<repo>\\.venv\\Scripts\\python.exe -m pytest tests -q",
       "exit_code": 0,
       "status": "pass",
-      "duration_seconds": 3.2,
-      "stdout_tail": "......ssss.............................................................. [ 66%]\n....................................                                     [100%]\n============================== warnings summary ===============================\n.venv\\Lib\\site-packages\\fastapi\\testclient.py:1\n  <repo>\\.venv\\Lib\\site-packages\\fastapi\\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n104 passed, 4 skipped, 1 warning in 2.38s",
+      "duration_seconds": 5.18,
+      "stdout_tail": "......ssss.............................................................. [ 66%]\n....................................                                     [100%]\n============================== warnings summary ===============================\n.venv\\Lib\\site-packages\\fastapi\\testclient.py:1\n  <repo>\\.venv\\Lib\\site-packages\\fastapi\\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n104 passed, 4 skipped, 1 warning in 4.34s",
       "stderr_tail": "",
       "summary": "104 passed, 4 skipped, 1 warning"
     },
@@ -98,7 +98,7 @@
       "command": "<repo>\\.venv\\Scripts\\python.exe -m ruff check packages/lumen-ai-core/src packages/lumen-ai-celery/src packages/lumen-ai-openlit/src --select E,F,W,I --ignore E501",
       "exit_code": 0,
       "status": "pass",
-      "duration_seconds": 0.14,
+      "duration_seconds": 0.11,
       "stdout_tail": "All checks passed!",
       "stderr_tail": "",
       "summary": "All checks passed"
@@ -108,7 +108,7 @@
       "command": "<repo>\\.venv\\Scripts\\python.exe -m mypy packages/lumen-ai-core/src/lumen_ai --ignore-missing-imports --no-error-summary",
       "exit_code": 0,
       "status": "pass",
-      "duration_seconds": 0.57,
+      "duration_seconds": 0.54,
       "stdout_tail": "",
       "stderr_tail": "",
       "summary": "No type errors"
@@ -118,7 +118,7 @@
       "command": "<repo>\\.venv\\Scripts\\python.exe -m pip check",
       "exit_code": 0,
       "status": "pass",
-      "duration_seconds": 0.79,
+      "duration_seconds": 0.67,
       "stdout_tail": "No broken requirements found.",
       "stderr_tail": "",
       "summary": "No broken requirements"
@@ -128,7 +128,7 @@
       "command": "<repo>\\.venv\\Scripts\\python.exe -m pip_audit",
       "exit_code": 0,
       "status": "pass",
-      "duration_seconds": 10.98,
+      "duration_seconds": 10.21,
       "stdout_tail": "Name             Skip Reason\n---------------- -------------------------------------------------------------------------------\nlumen-ai-celery  Dependency not found on PyPI and could not be audited: lumen-ai-celery (0.1.4)\nlumen-ai-core    Dependency not found on PyPI and could not be audited: lumen-ai-core (0.1.4)\nlumen-ai-openlit Dependency not found on PyPI and could not be audited: lumen-ai-openlit (0.1.4)",
       "stderr_tail": "No known vulnerabilities found",
       "summary": "No known vulnerabilities found"
@@ -138,8 +138,8 @@
       "command": "<repo>\\.venv\\Scripts\\python.exe scripts/release_gate.py",
       "exit_code": 0,
       "status": "pass",
-      "duration_seconds": 201.16,
-      "stdout_tail": "ation-httpx, opentelemetry-instrumentation-celery, opentelemetry-instrumentation-asgi, opentelemetry-instrumentation-aiohttp-client, opentelemetry-exporter-otlp-proto-http, opentelemetry-exporter-otlp-proto-grpc, lumen-ai-core, boto3, opentelemetry-instrumentation-starlette, opentelemetry-instrumentation-pyramid, opentelemetry-instrumentation-flask, opentelemetry-instrumentation-fastapi, opentelemetry-instrumentation-falcon, opentelemetry-instrumentation-django, opentelemetry-exporter-otlp, lumen-ai-celery, openlit, lumen-ai-openlit\n\nSuccessfully installed amqp-5.3.1 annotated-types-0.7.0 anthropic-0.116.0 anyio-4.14.1 asgiref-3.11.1 billiard-4.2.4 boto3-1.43.42 botocore-1.43.42 celery-5.6.3 certifi-2026.6.17 charset_normalizer-3.4.9 click-8.4.2 click-didyoumean-0.3.1 click-plugins-1.1.1.2 click-repl-0.3.0 colorama-0.4.6 distro-1.9.0 docstring-parser-0.18.0 googleapis-common-protos-1.75.0 greenlet-3.5.3 grpcio-1.81.1 h11-0.16.0 httpcore-1.0.9 httpx-0.28.1 idna-3.18 jiter-0.16.0 jmespath-1.1.0 kombu-5.6.2 lumen-ai-celery-0.1.4 lumen-ai-core-0.1.4 lumen-ai-openlit-0.1.4 openai-2.44.0 openlit-1.42.0 opentelemetry-api-1.43.0 opentelemetry-exporter-otlp-1.43.0 opentelemetry-exporter-otlp-proto-common-1.43.0 opentelemetry-exporter-otlp-proto-grpc-1.43.0 opentelemetry-exporter-otlp-proto-http-1.43.0 opentelemetry-instrumentation-0.64b0 opentelemetry-instrumentation-aiohttp-client-0.64b0 opentelemetry-instrumentation-asgi-0.64b0 opentelemetry-instrumentation-celery-0.64b0 opentelemetry-instrumentation-django-0.64b0 opentelemetry-instrumentation-falcon-0.64b0 opentelemetry-instrumentation-fastapi-0.64b0 opentelemetry-instrumentation-flask-0.64b0 opentelemetry-instrumentation-httpx-0.64b0 opentelemetry-instrumentation-pyramid-0.64b0 opentelemetry-instrumentation-requests-0.64b0 opentelemetry-instrumentation-starlette-0.64b0 opentelemetry-instrumentation-tornado-0.64b0 opentelemetry-instrumentation-urllib-0.64b0 opentelemetry-instrumentation-urllib3-0.64b0 opentelemetry-instrumentation-wsgi-0.64b0 opentelemetry-proto-1.43.0 opentelemetry-sdk-1.43.0 opentelemetry-semantic-conventions-0.64b0 opentelemetry-util-http-0.64b0 packaging-26.2 prompt-toolkit-3.0.52 protobuf-7.35.1 pydantic-2.13.4 pydantic-core-2.46.4 python-dateutil-2.9.0.post0 redis-8.0.1 requests-2.34.2 s3transfer-0.19.0 schedule-1.2.2 six-1.17.0 sniffio-1.3.1 sqlalchemy-2.0.51 tqdm-4.68.4 typing-extensions-4.16.0 typing-inspection-0.4.2 tzdata-2026.2 tzlocal-5.4.4 urllib3-2.7.0 vine-5.1.0 wcwidth-0.8.2 wrapt-2.2.2 xmltodict-0.15.1\n\n$ <temp>\\lumen-release-gate-wr1low_8\\sdist-venv\\Scripts\\python.exe -m pip check\nNo broken requirements found.\n\n$ <temp>\\lumen-release-gate-wr1low_8\\sdist-venv\\Scripts\\python.exe -c import lumen_ai; import lumen_ai.models; from lumen_ai import LumenAI, JsonlExporter, lumen_tenant, reset_tenant_id; from lumen_ai_celery import CeleryInstrumentor; from lumen_ai_openlit import OpenLITBridge; print('Release gate sdist import OK')\nRelease gate sdist import OK\n\nRelease gate OK",
+      "duration_seconds": 214.89,
+      "stdout_tail": "ation-httpx, opentelemetry-instrumentation-celery, opentelemetry-instrumentation-asgi, opentelemetry-instrumentation-aiohttp-client, opentelemetry-exporter-otlp-proto-http, opentelemetry-exporter-otlp-proto-grpc, lumen-ai-core, boto3, opentelemetry-instrumentation-starlette, opentelemetry-instrumentation-pyramid, opentelemetry-instrumentation-flask, opentelemetry-instrumentation-fastapi, opentelemetry-instrumentation-falcon, opentelemetry-instrumentation-django, opentelemetry-exporter-otlp, lumen-ai-celery, openlit, lumen-ai-openlit\n\nSuccessfully installed amqp-5.3.1 annotated-types-0.7.0 anthropic-0.116.0 anyio-4.14.1 asgiref-3.11.1 billiard-4.2.4 boto3-1.43.42 botocore-1.43.42 celery-5.6.3 certifi-2026.6.17 charset_normalizer-3.4.9 click-8.4.2 click-didyoumean-0.3.1 click-plugins-1.1.1.2 click-repl-0.3.0 colorama-0.4.6 distro-1.9.0 docstring-parser-0.18.0 googleapis-common-protos-1.75.0 greenlet-3.5.3 grpcio-1.81.1 h11-0.16.0 httpcore-1.0.9 httpx-0.28.1 idna-3.18 jiter-0.16.0 jmespath-1.1.0 kombu-5.6.2 lumen-ai-celery-0.1.4 lumen-ai-core-0.1.4 lumen-ai-openlit-0.1.4 openai-2.44.0 openlit-1.42.0 opentelemetry-api-1.43.0 opentelemetry-exporter-otlp-1.43.0 opentelemetry-exporter-otlp-proto-common-1.43.0 opentelemetry-exporter-otlp-proto-grpc-1.43.0 opentelemetry-exporter-otlp-proto-http-1.43.0 opentelemetry-instrumentation-0.64b0 opentelemetry-instrumentation-aiohttp-client-0.64b0 opentelemetry-instrumentation-asgi-0.64b0 opentelemetry-instrumentation-celery-0.64b0 opentelemetry-instrumentation-django-0.64b0 opentelemetry-instrumentation-falcon-0.64b0 opentelemetry-instrumentation-fastapi-0.64b0 opentelemetry-instrumentation-flask-0.64b0 opentelemetry-instrumentation-httpx-0.64b0 opentelemetry-instrumentation-pyramid-0.64b0 opentelemetry-instrumentation-requests-0.64b0 opentelemetry-instrumentation-starlette-0.64b0 opentelemetry-instrumentation-tornado-0.64b0 opentelemetry-instrumentation-urllib-0.64b0 opentelemetry-instrumentation-urllib3-0.64b0 opentelemetry-instrumentation-wsgi-0.64b0 opentelemetry-proto-1.43.0 opentelemetry-sdk-1.43.0 opentelemetry-semantic-conventions-0.64b0 opentelemetry-util-http-0.64b0 packaging-26.2 prompt-toolkit-3.0.52 protobuf-7.35.1 pydantic-2.13.4 pydantic-core-2.46.4 python-dateutil-2.9.0.post0 redis-8.0.1 requests-2.34.2 s3transfer-0.19.0 schedule-1.2.2 six-1.17.0 sniffio-1.3.1 sqlalchemy-2.0.51 tqdm-4.68.4 typing-extensions-4.16.0 typing-inspection-0.4.2 tzdata-2026.2 tzlocal-5.4.4 urllib3-2.7.0 vine-5.1.0 wcwidth-0.8.2 wrapt-2.2.2 xmltodict-0.15.1\n\n$ <temp>\\lumen-release-gate-p6rn9zm0\\sdist-venv\\Scripts\\python.exe -m pip check\nNo broken requirements found.\n\n$ <temp>\\lumen-release-gate-p6rn9zm0\\sdist-venv\\Scripts\\python.exe -c import lumen_ai; import lumen_ai.models; from lumen_ai import LumenAI, JsonlExporter, lumen_tenant, reset_tenant_id; from lumen_ai_celery import CeleryInstrumentor; from lumen_ai_openlit import OpenLITBridge; print('Release gate sdist import OK')\nRelease gate sdist import OK\n\nRelease gate OK",
       "stderr_tail": "* Creating isolated environment: venv+pip...\n* Installing packages in isolated environment:\n  - hatchling\n* Getting build dependencies for sdist...\n* Building sdist...\n* Building wheel from sdist\n* Creating isolated environment: venv+pip...\n* Installing packages in isolated environment:\n  - hatchling\n* Getting build dependencies for wheel...\n* Building wheel...\n* Creating isolated environment: venv+pip...\n* Installing packages in isolated environment:\n  - hatchling\n* Getting build dependencies for sdist...\n* Building sdist...\n* Building wheel from sdist\n* Creating isolated environment: venv+pip...\n* Installing packages in isolated environment:\n  - hatchling\n* Getting build dependencies for wheel...\n* Building wheel...\n* Creating isolated environment: venv+pip...\n* Installing packages in isolated environment:\n  - hatchling\n* Getting build dependencies for sdist...\n* Building sdist...\n* Building wheel from sdist\n* Creating isolated environment: venv+pip...\n* Installing packages in isolated environment:\n  - hatchling\n* Getting build dependencies for wheel...\n* Building wheel...",
       "summary": "Release gate OK"
     }
@@ -153,7 +153,7 @@
       "second_events": 1,
       "finding": "Second init exported to the new exporter",
       "command_status": "pass",
-      "duration_seconds": 0.35
+      "duration_seconds": 0.36
     },
     {
       "probe": "openinference_metadata",
@@ -164,7 +164,7 @@
       "observed_tokens_out": 300,
       "finding": "OpenInference-only metadata was preserved",
       "command_status": "pass",
-      "duration_seconds": 0.34
+      "duration_seconds": 0.35
     },
     {
       "probe": "tenant_attr_sanitize",
@@ -174,7 +174,7 @@
       "event_count": 1,
       "finding": "Tenant span attribute was sanitized",
       "command_status": "pass",
-      "duration_seconds": 0.31
+      "duration_seconds": 0.41
     }
   ],
   "findings": [
