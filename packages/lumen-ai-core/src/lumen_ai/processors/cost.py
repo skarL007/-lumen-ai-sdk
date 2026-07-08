@@ -100,8 +100,9 @@ class CostComputingSpanProcessor(SpanProcessor):
         pricing_provider: Implementation of BasePricingProvider.
     """
 
-    def __init__(self, pricing_provider: BasePricingProvider) -> None:
+    def __init__(self, pricing_provider: BasePricingProvider, runtime=None) -> None:
         self._pricing = pricing_provider
+        self._runtime = runtime
 
     def on_start(self, span, parent_context=None) -> None:
         pass
@@ -129,7 +130,14 @@ class CostComputingSpanProcessor(SpanProcessor):
                 return
 
             try:
-                pricing = self._pricing.get_pricing(model)
+                pricing_provider = (
+                    self._runtime.pricing_provider
+                    if self._runtime is not None
+                    else self._pricing
+                )
+                if pricing_provider is None:
+                    return
+                pricing = pricing_provider.get_pricing(model)
             except Exception:
                 logger.debug("PricingProvider raised for model '%s'", model, exc_info=True)
                 return

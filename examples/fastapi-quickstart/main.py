@@ -12,8 +12,7 @@ from contextlib import asynccontextmanager
 
 import anthropic
 from fastapi import FastAPI, Request
-from lumen_ai import LumenAI
-from lumen_ai.processors.tenant import _current_tenant, set_tenant_id
+from lumen_ai import LumenAI, reset_tenant_id, set_tenant_id
 from lumen_ai.schema.semconv import GenAIAttributes, OpenInferenceAttributes, SpanKind
 from opentelemetry import trace
 
@@ -38,7 +37,7 @@ async def tenant_middleware(request: Request, call_next):
     try:
         return await call_next(request)
     finally:
-        _current_tenant.reset(token)
+        reset_tenant_id(token)
 
 
 @app.post("/chat")
