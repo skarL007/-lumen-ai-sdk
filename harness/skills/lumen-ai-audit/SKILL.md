@@ -1,6 +1,6 @@
 # LumenAI Audit Skill
 
-Use this skill when auditing, fixing, or preparing release work for `skarL007/-lumen-ai-sdk`.
+Use this skill when auditing, fixing, or preparing release work for `skarL007/lumen-ai-sdk`.
 
 ## First Steps
 

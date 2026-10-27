@@ -108,7 +108,7 @@ LumenAI is currently in alpha. The latest commit on the `main` branch and the la
 
 Use GitHub's built-in private reporting mechanism:
 
-[Open a GitHub Security Advisory](https://github.com/skarL007/-lumen-ai-sdk/security/advisories/new)
+[Open a GitHub Security Advisory](https://github.com/skarL007/lumen-ai-sdk/security/advisories/new)
 
 This creates a private thread visible only to you and the maintainer. No public exposure until a fix is ready.
 
@@ -191,4 +191,4 @@ If you discover a vulnerability in one of these dependencies that affects LumenA
 
 ---
 
-*For questions about LumenAI's security model that are not vulnerability reports, feel free to reach out on [Discord (skar1v9)](https://discord.com/users/skar1v9) or open a regular [GitHub Issue](https://github.com/skarL007/-lumen-ai-sdk/issues).*
+*For questions about LumenAI's security model that are not vulnerability reports, feel free to reach out on [Discord (skar1v9)](https://discord.com/users/skar1v9) or open a regular [GitHub Issue](https://github.com/skarL007/lumen-ai-sdk/issues).*

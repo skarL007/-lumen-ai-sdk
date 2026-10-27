@@ -11,7 +11,7 @@ This guide will help you get oriented quickly and contribute effectively, whethe
 The repository is a Python monorepo with three packages and a shared test suite:
 
 ```
--lumen-ai-sdk/
+lumen-ai-sdk/
 ├── packages/
 │   ├── lumen-ai-core/       ← Core SDK (always start here)
 │   ├── lumen-ai-celery/     ← Optional Celery integration
@@ -38,8 +38,8 @@ The repository is a Python monorepo with three packages and a shared test suite:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/skarL007/-lumen-ai-sdk.git
-cd -lumen-ai-sdk
+git clone https://github.com/skarL007/lumen-ai-sdk.git
+cd lumen-ai-sdk
 
 # 2. Install the core package in editable mode
 pip install -e packages/lumen-ai-core
@@ -55,7 +55,7 @@ pip install pytest
 pytest tests/ -v
 ```
 
-The full test suite should pass. If any fail on a clean clone, please [open an issue](https://github.com/skarL007/-lumen-ai-sdk/issues).
+The full test suite should pass. If any fail on a clean clone, please [open an issue](https://github.com/skarL007/lumen-ai-sdk/issues).
 
 ---
 
@@ -159,7 +159,7 @@ If something is broken or confusing, please open an issue. Good bug reports incl
 - What you expected vs. what happened
 - Full traceback if applicable
 
-[Open a bug report](https://github.com/skarL007/-lumen-ai-sdk/issues/new)
+[Open a bug report](https://github.com/skarL007/lumen-ai-sdk/issues/new)
 
 ---
 

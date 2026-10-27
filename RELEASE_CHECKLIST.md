@@ -58,7 +58,7 @@ Do not publish while any of these are true:
    gh pr ready 12
    ```
 
-4. Merge into `LumenAI`.
+4. Merge into `main`.
 5. Create and push the tag:
 
    ```powershell

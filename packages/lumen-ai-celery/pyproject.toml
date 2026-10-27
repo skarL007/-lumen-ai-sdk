@@ -23,8 +23,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/skarL007/-lumen-ai-sdk"
-Repository = "https://github.com/skarL007/-lumen-ai-sdk"
+Homepage = "https://github.com/skarL007/lumen-ai-sdk"
+Repository = "https://github.com/skarL007/lumen-ai-sdk"
 
 [build-system]
 requires = ["hatchling"]

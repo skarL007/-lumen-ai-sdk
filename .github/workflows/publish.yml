@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   release-gate:
-    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/LumenAI' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -44,7 +44,7 @@ jobs:
 
   publish:
     needs: release-gate
-    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/LumenAI' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
