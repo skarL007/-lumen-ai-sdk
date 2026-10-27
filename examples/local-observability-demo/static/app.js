@@ -1,6 +1,8 @@
 // LumenAI demo dashboard. Live mode talks to the FastAPI backend in main.py;
 // without a backend (a static host), it replays static/recorded-events.json,
-// a real run of the README scenario recorded by record.py.
+// a real run of the README scenario recorded by record.py. On a serverless
+// host (per-request store), each call returns the events it exported and this
+// page keeps them, so visitors never share data.
 
 const CONTENT_KEYS = ["prompt", "completion", "input.value", "output.value", "messages"];
 const KIND = {
@@ -12,7 +14,7 @@ const KIND = {
 };
 
 const $ = (selector) => document.querySelector(selector);
-const state = { mode: "connecting", events: [], tenant: null, open: new Set(), busy: false };
+const state = { mode: "connecting", perRequest: false, events: [], tenant: null, open: new Set(), busy: false };
 
 const theme = new URLSearchParams(location.search).get("theme");
 if (theme === "dark" || theme === "light") document.documentElement.dataset.theme = theme;
@@ -177,9 +179,9 @@ function render() {
 function setMode(mode, detail) {
   state.mode = mode;
   const chip = $("#mode-chip");
-  const live = mode === "jsonl" || mode === "redis";
+  const live = mode === "jsonl" || mode === "redis" || mode === "memory";
   chip.className = `chip ${live ? "chip-live" : mode === "error" ? "chip-err" : ""}`;
-  chip.textContent = { jsonl: "Live · JSONL exporter", redis: "Live · Redis Streams", replay: "Recorded run", error: "No backend" }[mode] || "Connecting…";
+  chip.textContent = { jsonl: "Live · JSONL exporter", redis: "Live · Redis Streams", memory: "Live · per request", replay: "Recorded run", error: "No backend" }[mode] || "Connecting…";
   $("#replay-banner").hidden = mode !== "replay";
   $("#live-actions").hidden = !live;
   $("#custom-panel").hidden = !live;
@@ -193,13 +195,19 @@ async function loadEvents() {
   render();
 }
 
-async function act(button, work, done) {
+// keep(result) applies a per-request response; stores that persist are re-read instead.
+async function act(button, work, done, keep) {
   if (state.busy) return;
   state.busy = true;
   if (button) button.disabled = true;
   try {
-    await work();
-    await loadEvents();
+    const result = await work();
+    if (state.perRequest) {
+      keep(result);
+      render();
+    } else {
+      await loadEvents();
+    }
     announce(done);
   } catch (error) {
     announce(error.message);
@@ -220,8 +228,15 @@ async function loadModels() {
 async function start() {
   try {
     const health = await getJSON("api/health");
-    setMode(health.exporter, `Events are read back from ${health.store} after LumenAI exports them.`);
-    await Promise.all([loadModels(), loadEvents()]);
+    state.perRequest = Boolean(health.per_request);
+    if (state.perRequest) {
+      setMode(health.exporter, "Each request runs LumenAI on the server and returns the events its exporter received. Nothing is stored there; your events stay in this tab.");
+      await loadModels();
+      await act(null, runScenario, "Scenario run on the server: 3 tenants, 11 events.", keepScenario);
+    } else {
+      setMode(health.exporter, `Events are read back from ${health.store} after LumenAI exports them.`);
+      await Promise.all([loadModels(), loadEvents()]);
+    }
     return;
   } catch {
     // no backend: fall through to the recorded run
@@ -237,10 +252,13 @@ async function start() {
   }
 }
 
+const runScenario = () => getJSON("api/scenario", { method: "POST" });
+const keepScenario = (result) => { state.events = result.produced || []; };
+
 $("#run-scenario").addEventListener("click", (event) =>
-  act(event.currentTarget, () => getJSON("api/scenario", { method: "POST" }), "Scenario replayed: 3 tenants, 11 events."));
+  act(event.currentTarget, runScenario, "Scenario replayed: 3 tenants, 11 events.", keepScenario));
 $("#reset").addEventListener("click", (event) =>
-  act(event.currentTarget, () => getJSON("api/reset", { method: "POST" }), "Events cleared."));
+  act(event.currentTarget, () => getJSON("api/reset", { method: "POST" }), "Events cleared.", () => { state.events = []; }));
 $("#simulate-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
@@ -254,7 +272,7 @@ $("#simulate-form").addEventListener("submit", (event) => {
   };
   const button = event.currentTarget.querySelector("button[type=submit]");
   act(button, () => getJSON("api/simulate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }),
-    `Span sent for ${payload.tenant_id}.`);
+    `Span sent for ${payload.tenant_id}.`, (result) => { state.events = [...state.events, ...(result.produced || [])]; });
 });
 
 start();

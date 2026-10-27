@@ -12,6 +12,8 @@ same `$0.190000` the README prints. The page then shows:
 The app starts LumenAI with `genai_only=True`, so FastAPI's own request spans stay out of the cost
 stream.
 
+**Live: [lumen-ai-sdk-demo.vercel.app](https://lumen-ai-sdk-demo.vercel.app)**
+
 ![LumenAI demo dashboard after the 3-tenant scenario](../../docs/assets/lumen-dashboard.png)
 
 ## Run it (no Docker, no API key)
@@ -58,6 +60,21 @@ curl "http://localhost:8000/api/events?tenant=acme"
 
 The event comes back with `tenant_id`, `model`, `tokens_in`, `tokens_out`, `cache_read_tokens` and
 `cost_usd` (`0.159` here). It has no prompt or response text.
+
+## Hosted on Vercel
+
+The live demo at <https://lumen-ai-sdk-demo.vercel.app> is this app on Vercel, deployed from `main` by the
+Git integration. `vercel.json` at the repository root builds `vercel_app.py`, and `.vercelignore`
+ships only this folder, `examples/multi-tenant-cost-report`, and `packages/lumen-ai-core`.
+
+Serverless functions share no disk between calls, so the hosted demo uses the per-request store
+(`LUMEN_DEMO_STORE=memory`): `/api/scenario` and `/api/simulate` run the SDK and return the events the
+exporter received in a `produced` field, and the page keeps them in the browser tab. Nothing is stored
+on the server, so visitors never see each other's spans. To try that mode locally:
+
+```bash
+uvicorn vercel_app:app --app-dir examples/local-observability-demo
+```
 
 ## Static mode
 

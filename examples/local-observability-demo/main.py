@@ -3,7 +3,9 @@ LumenAI local demo dashboard: FastAPI in front of the real processor chain.
 
 No Docker, Redis or API key is needed. Events go to a JSON Lines file by
 default; set ``REDIS_URL`` to store them in Redis Streams instead (the
-docker-compose file does that).
+docker-compose file does that). ``LUMEN_DEMO_STORE=memory`` keeps nothing on
+the server: each request returns the events it exported, which is how the
+hosted demo runs on Vercel (see ``vercel_app.py``).
 
     pip install -e packages/lumen-ai-core fastapi uvicorn
     uvicorn main:app --app-dir examples/local-observability-demo
@@ -27,7 +29,8 @@ from typing import Any, Optional
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from lumen_ai import JsonlExporter, LumenAI, lumen_tenant
+from lumen_ai import JsonlExporter, LumenAI, LumenAIEvent, lumen_tenant
+from lumen_ai.providers import BaseLumenAIExporter
 from lumen_ai.schema.semconv import (
     PRICING_TABLE,
     GenAIAttributes,
@@ -49,6 +52,7 @@ class JsonlStore:
     """Events in an append-only JSON Lines file, read back for the dashboard."""
 
     mode = "jsonl"
+    per_request = False
 
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -81,6 +85,7 @@ class RedisStore:
     """Events in tenant-scoped Redis Streams: ``LumenAI:events:{tenant_id}``."""
 
     mode = "redis"
+    per_request = False
 
     def __init__(self, url: str) -> None:
         import redis
@@ -113,7 +118,49 @@ class RedisStore:
         return f"{STREAM_PREFIX}:{{tenant_id}}"
 
 
-def _make_store() -> JsonlStore | RedisStore:
+class _CaptureExporter(BaseLumenAIExporter):
+    def __init__(self, target: list[dict[str, Any]]) -> None:
+        self._target = target
+
+    def export(self, tenant_id: str, event: LumenAIEvent) -> None:
+        self._target.append(dict(event))
+
+
+class MemoryStore:
+    """Nothing kept between requests, for serverless hosts that share no disk.
+
+    Each write request clears the capture, runs the SDK, and returns the events
+    the exporter received in that request; the browser keeps them. Visitors
+    never see each other's spans.
+    """
+
+    mode = "memory"
+    per_request = True
+
+    def __init__(self) -> None:
+        self._captured: list[dict[str, Any]] = []
+
+    def init_kwargs(self) -> dict[str, Any]:
+        return {"exporter": _CaptureExporter(self._captured)}
+
+    def events(self, tenant: Optional[str], limit: int) -> list[dict[str, Any]]:
+        return []  # nothing outlives the request that produced it
+
+    def take(self) -> list[dict[str, Any]]:
+        events = list(self._captured)
+        self._captured.clear()
+        return events
+
+    def reset(self) -> None:
+        self._captured.clear()
+
+    def describe(self) -> str:
+        return "nothing on the server; each request returns its own events"
+
+
+def _make_store() -> JsonlStore | RedisStore | MemoryStore:
+    if os.getenv("LUMEN_DEMO_STORE", "").strip().lower() == "memory":
+        return MemoryStore()
     redis_url = os.getenv("REDIS_URL", "").strip()
     if redis_url:
         return RedisStore(redis_url)
@@ -172,8 +219,13 @@ def dashboard() -> FileResponse:
 
 
 @app.get("/api/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "exporter": store.mode, "store": store.describe()}
+def health() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "exporter": store.mode,
+        "store": store.describe(),
+        "per_request": store.per_request,
+    }
 
 
 @app.get("/api/models")
@@ -196,27 +248,42 @@ def events(
 
 @app.post("/api/scenario")
 def run_scenario() -> dict[str, Any]:
-    """Clear the store, then replay the README workload so totals reproduce."""
+    """Clear the store, then replay the README workload so totals reproduce.
+
+    With the per-request store, the response carries the exported events as
+    ``produced``.
+    """
     with _write_lock:
         store.reset()
         scenario.run_workload(trace.get_tracer(SERVICE_NAME))
-    return {"exporter": store.mode, "events": len(store.events(None, 5000))}
+        produced = store.take() if store.per_request else store.events(None, 5000)
+    body: dict[str, Any] = {"exporter": store.mode, "events": len(produced)}
+    if store.per_request:
+        body["produced"] = produced
+    return body
 
 
 @app.post("/api/simulate")
 def simulate(request: SimulateRequest) -> dict[str, Any]:
     tracer = trace.get_tracer(SERVICE_NAME)
-    with _write_lock, lumen_tenant(request.tenant_id):
-        with tracer.start_as_current_span("demo.custom_llm_call") as span:
-            span.set_attribute(OpenInferenceAttributes.SPAN_KIND, SpanKind.LLM)
-            span.set_attribute(GenAIAttributes.OPERATION_NAME, "chat")
-            span.set_attribute(GenAIAttributes.REQUEST_MODEL, request.model)
-            span.set_attribute(GenAIAttributes.USAGE_INPUT_TOKENS, request.input_tokens)
-            span.set_attribute(GenAIAttributes.USAGE_OUTPUT_TOKENS, request.output_tokens)
-            span.set_attribute(GenAIAttributes.USAGE_CACHE_READ, request.cache_read_tokens)
-            if request.fail:
-                span.set_status(Status(StatusCode.ERROR, "simulated failure"))
-    return {"accepted": True, **request.model_dump()}
+    with _write_lock:
+        if store.per_request:
+            store.reset()
+        with lumen_tenant(request.tenant_id):
+            with tracer.start_as_current_span("demo.custom_llm_call") as span:
+                span.set_attribute(OpenInferenceAttributes.SPAN_KIND, SpanKind.LLM)
+                span.set_attribute(GenAIAttributes.OPERATION_NAME, "chat")
+                span.set_attribute(GenAIAttributes.REQUEST_MODEL, request.model)
+                span.set_attribute(GenAIAttributes.USAGE_INPUT_TOKENS, request.input_tokens)
+                span.set_attribute(GenAIAttributes.USAGE_OUTPUT_TOKENS, request.output_tokens)
+                span.set_attribute(GenAIAttributes.USAGE_CACHE_READ, request.cache_read_tokens)
+                if request.fail:
+                    span.set_status(Status(StatusCode.ERROR, "simulated failure"))
+        produced = store.take() if store.per_request else []
+    body: dict[str, Any] = {"accepted": True, **request.model_dump()}
+    if store.per_request:
+        body["produced"] = produced
+    return body
 
 
 @app.post("/api/reset")

@@ -10,6 +10,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- **examples**: the demo dashboard is live at https://lumen-ai-sdk-demo.vercel.app, deployed from `main` (`vercel.json`, `vercel_app.py`). It uses a new per-request store (`LUMEN_DEMO_STORE=memory`): each call runs the SDK and returns the events it exported, nothing is kept on the server, and visitors never share data.
 - **sdk**: `LumenAI.init(genai_only=True)` exports only spans with GenAI, OpenInference, or LumenAI attributes, so framework spans (FastAPI 0.162 emits request, endpoint, and serialization spans) no longer become `$0` `AGENT_COMPLETED` events. Off by default; skipped spans are counted in the new `events_skipped` metric.
 - **examples**: `local-observability-demo` redesigned as a dashboard over the real processor chain. It runs without Docker (JSONL by default, Redis Streams when `REDIS_URL` is set), replays the `multi-tenant-cost-report` workload to the same `$0.190000` total, checks tenant isolation, privacy, failed-call billing, and prompt caching from the exported events, and prices custom spans for any model in the table. New `/api/*` endpoints; the old `/health`, `/simulate`, and `/events/{tenant_id}` paths still work.
 - **examples**: `local-observability-demo/record.py` records a run to `static/recorded-events.json`; without a backend, the page replays it, so it can be served from a static host.

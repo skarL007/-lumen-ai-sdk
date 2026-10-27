@@ -1,0 +1,13 @@
+# The Vercel deployment is only the hosted demo (vercel.json). Ship just what it
+# runs: the demo, the README scenario it replays, and the core SDK source.
+/*
+!vercel.json
+!examples
+!packages
+examples/*
+!examples/local-observability-demo
+!examples/multi-tenant-cost-report
+packages/*
+!packages/lumen-ai-core
+**/.runtime
+**/__pycache__

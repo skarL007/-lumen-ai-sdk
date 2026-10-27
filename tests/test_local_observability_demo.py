@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -118,6 +119,58 @@ def test_models_skip_anthropic_aliases(demo):
 
     assert "claude-sonnet-4-6" in ids
     assert not [model for model in ids if model.startswith("anthropic/")]
+
+
+@pytest.fixture
+def per_request_demo(monkeypatch):
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("LUMEN_DEMO_STORE", "memory")
+    return _load("lumen_demo_per_request", DEMO_DIR / "main.py")
+
+
+def test_per_request_scenario_returns_its_events_and_keeps_none(per_request_demo):
+    with TestClient(per_request_demo.app) as client:
+        health = client.get("/api/health").json()
+        body = client.post("/api/scenario").json()
+        stored = client.get("/api/events").json()["events"]
+
+    assert health["exporter"] == "memory"
+    assert health["per_request"] is True
+    assert body["events"] == len(body["produced"]) == 11
+    assert _costs(body["produced"]) == EXPECTED
+    assert not [key for event in body["produced"] for key in CONTENT_KEYS if key in event]
+    assert stored == []
+
+
+def test_per_request_simulate_returns_only_its_own_event(per_request_demo):
+    span = {"tenant_id": "t-1", "model": "claude-sonnet-4-6", "input_tokens": 40_000,
+            "output_tokens": 2_000, "cache_read_tokens": 30_000}
+    with TestClient(per_request_demo.app) as client:
+        client.post("/api/scenario")
+        first = client.post("/api/simulate", json=span).json()["produced"]
+        second = client.post("/api/simulate", json={**span, "tenant_id": "t-2"}).json()["produced"]
+
+    assert [event["tenant_id"] for event in first] == ["t-1"]
+    assert first[0]["cost_usd"] == pytest.approx(0.159)
+    assert [event["tenant_id"] for event in second] == ["t-2"]
+
+
+def test_vercel_entry_serves_the_per_request_store(monkeypatch):
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    monkeypatch.delitem(sys.modules, "main", raising=False)
+    had_store = "LUMEN_DEMO_STORE" in os.environ
+    monkeypatch.delenv("LUMEN_DEMO_STORE", raising=False)
+    try:
+        entry = _load("lumen_demo_vercel_entry", DEMO_DIR / "vercel_app.py")
+        with TestClient(entry.app) as client:
+            assert client.get("/api/health").json()["exporter"] == "memory"
+            assert client.get("/").status_code == 200
+            assert client.get("/static/app.js").status_code == 200
+    finally:
+        sys.modules.pop("main", None)
+        if not had_store:
+            os.environ.pop("LUMEN_DEMO_STORE", None)
 
 
 def test_recording_matches_a_fresh_run():
