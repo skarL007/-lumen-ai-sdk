@@ -9,13 +9,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- **examples**: `multi-tenant-cost-report`, a deterministic offline demo (three tenants, prompt caching, OpenInference spans, a failed call, a cross-tenant span) whose output is pinned in the README by `tests/test_cost_report_example.py`.
+- **providers**: `BaseLumenAIExporter.force_flush()` (no-op default), reached by `TracerProvider.force_flush()` through the normalizer.
+- **providers**: `AsyncRedisExporter(flush_interval=1.0)` writes partial buffers on a timer, plus a blocking `force_flush()`.
+- **providers**: `RedisExporter(maxlen=...)`, matching `AsyncRedisExporter`.
+
 ### Fixed
+- **cost**: OpenInference-only spans (`llm.token_count.*`) are now priced; they were exported with `cost_usd=0.0` even for known models.
+- **normalizer**: event `timestamp` is the span's end time instead of the export wall-clock.
+- **normalizer**: an errored span with no GenAI/OpenInference kind is `AGENT_FAILED`, not `AGENT_COMPLETED`.
+- **normalizer**: `session_id` / `agent_id` fall back to `gen_ai.conversation.id` / `gen_ai.agent.id`.
+- **providers**: `JsonlExporter.export()` after `shutdown()` is ignored instead of raising on the closed file.
 - **sdk**: reinitializing against an externally attached `TracerProvider` now updates exporter, pricing provider, and default tenant through shared runtime state instead of keeping stale sinks.
 - **normalizer**: OpenInference-only spans now preserve `llm.model_name`, prompt tokens, and completion tokens even when pricing is unknown and `cost_usd` stays zero.
 - **providers**: `AsyncRedisExporter.shutdown()` now waits for in-flight auto-flush futures before closing Redis and its background loop.
 - **tenant**: span attributes, Celery kwargs, tenant context, and exporter stream keys now share the same tenant sanitization path; `reset_tenant_id(token)` is public.
 
 ### Changed
+- README rewritten around a reproducible demo, with architecture, span-lifecycle, tenant-attribution, cost, and async-export diagrams and a design-decisions table.
+- Span attribute coercion lives in one module (`lumen_ai._attributes`) instead of three diverging copies.
 - Hardened CI and publishing with Python 3.11/3.12 matrices, pinned GitHub Actions, blocking dependency audit, release-gate enforcement, `twine check`, and wheel/sdist clean-install validation.
 - Updated FastAPI, Celery, LangChain, and custom exporter examples to match the public API and active instrumentation path.
 - Added a local audit harness with probes, MCP/context/skills/agent prompts, generated report data, and a visual dashboard.

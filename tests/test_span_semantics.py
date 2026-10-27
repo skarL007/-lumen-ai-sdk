@@ -20,9 +20,6 @@ sys.path.insert(
 )
 
 import pytest
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.trace import Status, StatusCode
-
 from lumen_ai import JsonlExporter
 from lumen_ai.providers import (
     AsyncRedisExporter,
@@ -38,6 +35,8 @@ from lumen_ai.schema.semconv import (
     SpanKind,
 )
 from lumen_ai.tracer import create_tracer_provider
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.trace import Status, StatusCode
 
 
 class _Capture(BaseLumenAIExporter):
