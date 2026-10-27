@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "lumen-ai-audit": {
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "harness\\mcp\\start-mcp.ps1"
+      ],
+      "env": {
+        "LUMEN_AUDIT_ROOT": "."
+      }
+    }
+  }
+}

@@ -20,6 +20,7 @@ from lumen_ai.processors.cost import CostComputingSpanProcessor
 from lumen_ai.processors.normalizer import EventNormalizerProcessor
 from lumen_ai.processors.tenant import TenantSpanProcessor
 from lumen_ai.providers import BaseLumenAIExporter, BasePricingProvider
+from lumen_ai.runtime import LumenRuntimeState
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ def create_tracer_provider(
     exporter: Optional[BaseLumenAIExporter] = None,
     enable_otlp: bool = True,
     otlp_insecure: Optional[bool] = None,
+    runtime: Optional[LumenRuntimeState] = None,
 ) -> TracerProvider:
     """
     Create a TracerProvider with the LumenAI processor chain.
@@ -90,6 +92,7 @@ def create_tracer_provider(
         enable_otlp=enable_otlp,
         otlp_endpoint=otlp_endpoint,
         otlp_insecure=otlp_insecure,
+        runtime=runtime,
     )
     return provider
 
@@ -102,6 +105,7 @@ def add_lumen_processors(
     enable_otlp: bool = False,
     otlp_endpoint: Optional[str] = None,
     otlp_insecure: Optional[bool] = None,
+    runtime: Optional[LumenRuntimeState] = None,
 ) -> None:
     """
     Attach the LumenAI processor chain to a TracerProvider.
@@ -110,14 +114,21 @@ def add_lumen_processors(
     provider that LumenAI adopts (see ``LumenAI.init``).
     """
     # 1. Tenant — must run first so downstream processors can read tenant_id
-    provider.add_span_processor(TenantSpanProcessor(default_tenant=default_tenant))
+    if runtime is None:
+        runtime = LumenRuntimeState(
+            default_tenant=default_tenant,
+            pricing_provider=pricing_provider,
+            exporter=exporter,
+        )
+
+    provider.add_span_processor(TenantSpanProcessor(default_tenant=default_tenant, runtime=runtime))
 
     # 2. Cost — reads model + token attrs, writes cost to side-dict
     if pricing_provider:
-        provider.add_span_processor(CostComputingSpanProcessor(pricing_provider))
+        provider.add_span_processor(CostComputingSpanProcessor(pricing_provider, runtime=runtime))
 
     # 3. Normalizer — reads tenant + cost side-dicts, exports canonical event
-    provider.add_span_processor(EventNormalizerProcessor(exporter=exporter))
+    provider.add_span_processor(EventNormalizerProcessor(exporter=exporter, runtime=runtime))
 
     # 4. OTLP — forward raw OTel spans to Jaeger / Tempo / Phoenix
     if enable_otlp:

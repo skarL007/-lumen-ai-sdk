@@ -13,12 +13,11 @@ import asyncio
 import os
 import sys
 import threading
+import time
 
 sys.path.insert(
     0, os.path.join(os.path.dirname(__file__), "..", "packages", "lumen-ai-core", "src")
 )
-
-import pytest
 
 from lumen_ai.providers import AsyncRedisExporter
 
@@ -78,6 +77,67 @@ def test_shutdown_flushes_remaining_and_stops_thread():
     exp.shutdown()
 
     assert recorded == [[("acme", {"id": "z"})]]
+    assert not exp._thread.is_alive()
+
+
+def test_shutdown_waits_for_in_flight_autoflush():
+    exp = AsyncRedisExporter("redis://localhost:6379/0", max_buffer=1)
+    recorded = []
+
+    async def slow_write(events):
+        await asyncio.sleep(0.05)
+        recorded.append(list(events))
+
+    exp._write_batch = slow_write
+    exp.export("acme", {"id": "slow"})
+    exp.shutdown()
+
+    assert recorded == [[("acme", {"id": "slow"})]]
+    assert not exp._thread.is_alive()
+
+
+def test_autoflush_future_is_registered_before_shutdown_snapshot():
+    class RaceExporter(AsyncRedisExporter):
+        def __init__(self):
+            super().__init__("redis://localhost:6379/0", max_buffer=1)
+            self.schedule_entered = threading.Event()
+            self.release_schedule = threading.Event()
+            self.lock_was_held = []
+
+        def _schedule_locked(self, coro):
+            self.lock_was_held.append(self._lock._is_owned())
+            self.schedule_entered.set()
+            assert self.release_schedule.wait(timeout=3), "schedule was not released"
+            return super()._schedule_locked(coro)
+
+    exp = RaceExporter()
+    recorded = []
+
+    async def slow_write(events):
+        await asyncio.sleep(0.01)
+        recorded.append(list(events))
+
+    exp._write_batch = slow_write
+
+    worker = threading.Thread(
+        target=lambda: exp.export("acme", {"id": "race"}), daemon=True
+    )
+    worker.start()
+    assert exp.schedule_entered.wait(timeout=3), "auto-flush was not scheduled"
+
+    shutdown_thread = threading.Thread(target=exp.shutdown, daemon=True)
+    shutdown_thread.start()
+    time.sleep(0.05)
+    assert shutdown_thread.is_alive(), "shutdown raced past auto-flush registration"
+
+    exp.release_schedule.set()
+    worker.join(timeout=3)
+    shutdown_thread.join(timeout=3)
+
+    assert not worker.is_alive()
+    assert not shutdown_thread.is_alive()
+    assert exp.lock_was_held == [True]
+    assert recorded == [[("acme", {"id": "race"})]]
     assert not exp._thread.is_alive()
 
 

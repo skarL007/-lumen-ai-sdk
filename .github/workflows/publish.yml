@@ -6,15 +6,49 @@ on:
   workflow_dispatch:
     inputs:
       package:
-        description: "Package to publish (core | celery | openlit | all)"
+        description: "Package to publish"
         required: true
         default: "all"
+        type: choice
+        options:
+          - all
+          - core
+          - celery
+          - openlit
+
+permissions:
+  contents: read
 
 jobs:
+  release-gate:
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/LumenAI' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+
+      - name: Install release tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e packages/lumen-ai-core
+          pip install -e packages/lumen-ai-celery
+          pip install -e packages/lumen-ai-openlit
+          pip install pytest pytest-cov fastapi httpx ruff mypy build twine celery
+
+      - name: Run release gate
+        run: python scripts/release_gate.py
+
   publish:
+    needs: release-gate
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/LumenAI' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
+      contents: read
       id-token: write
 
     strategy:
@@ -26,19 +60,19 @@ jobs:
           - lumen-ai-openlit
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Install build tools
         run: |
           python -m pip install --upgrade pip
-          pip install build
+          pip install build twine
 
-      - name: Build ${{ matrix.package }}
+      - name: Build and check ${{ matrix.package }}
         if: >-
           ${{
             github.event_name == 'release' ||
@@ -47,7 +81,9 @@ jobs:
             (github.event.inputs.package == 'celery' && matrix.package == 'lumen-ai-celery') ||
             (github.event.inputs.package == 'openlit' && matrix.package == 'lumen-ai-openlit')
           }}
-        run: python -m build packages/${{ matrix.package }}
+        run: |
+          python -m build packages/${{ matrix.package }}
+          python -m twine check packages/${{ matrix.package }}/dist/*
 
       - name: Publish ${{ matrix.package }} to PyPI
         if: >-
@@ -58,7 +94,7 @@ jobs:
             (github.event.inputs.package == 'celery' && matrix.package == 'lumen-ai-celery') ||
             (github.event.inputs.package == 'openlit' && matrix.package == 'lumen-ai-openlit')
           }}
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b
         with:
           packages-dir: packages/${{ matrix.package }}/dist/
           skip-existing: true

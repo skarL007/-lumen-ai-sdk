@@ -75,3 +75,13 @@ def test_prerun_with_none_task_id_creates_no_entry():
 
     assert None not in _active_spans
     assert len(_active_spans) == 0
+
+
+def test_prerun_sanitizes_tenant_from_kwargs():
+    inst, span = _instrumentor_with_tracer()
+    task = MagicMock()
+    task.name = "demo.task"
+
+    inst._on_task_prerun(task_id="task-s", task=task, kwargs={"tenant_id": "ac\nme\t"})
+
+    span.set_attribute.assert_any_call("LumenAI.tenant_id", "acme")

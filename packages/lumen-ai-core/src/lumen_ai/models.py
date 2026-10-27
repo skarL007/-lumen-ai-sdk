@@ -13,13 +13,14 @@ from sqlalchemy import (
     Column,
     DateTime,
     Float,
-    ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
-from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy.orm import DeclarativeBase, backref, relationship
 
 
 class Base(DeclarativeBase):
@@ -59,6 +60,7 @@ class LumenAISession(Base):
     approvals = relationship("LumenAIApproval", back_populates="session", cascade="all, delete-orphan")
 
     __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_LumenAI_sessions_tenant_id"),
         Index("idx_LumenAI_session_tenant_status", "tenant_id", "status"),
     )
 
@@ -67,8 +69,8 @@ class LumenAIAgent(Base):
     __tablename__ = "LumenAI_agents"
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    session_id = Column(String(36), ForeignKey("LumenAI_sessions.id"), nullable=False)
-    parent_agent_id = Column(String(36), ForeignKey("LumenAI_agents.id"), nullable=True)
+    session_id = Column(String(36), nullable=False)
+    parent_agent_id = Column(String(36), nullable=True)
     tenant_id = Column(String(64), nullable=False, index=True)
     trace_id = Column(String(64), default="")
     parent_tool_use_id = Column(String(64), default="")
@@ -89,11 +91,36 @@ class LumenAIAgent(Base):
 
     # Relationships
     session = relationship("LumenAISession", back_populates="agents")
-    children = relationship("LumenAIAgent", backref="parent", remote_side=[id])
-    events = relationship("LumenAIEventRow", back_populates="agent", cascade="all, delete-orphan")
-    artifacts = relationship("LumenAIArtifact", back_populates="agent", cascade="all, delete-orphan")
+    children = relationship(
+        "LumenAIAgent",
+        backref=backref("parent", remote_side=[id], overlaps="agents,session"),
+        overlaps="agents,session",
+    )
+    events = relationship(
+        "LumenAIEventRow",
+        back_populates="agent",
+        cascade="all, delete-orphan",
+        overlaps="events,session",
+    )
+    artifacts = relationship(
+        "LumenAIArtifact",
+        back_populates="agent",
+        cascade="all, delete-orphan",
+        overlaps="artifacts,session",
+    )
 
     __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_LumenAI_agents_tenant_id"),
+        ForeignKeyConstraint(
+            ["tenant_id", "session_id"],
+            ["LumenAI_sessions.tenant_id", "LumenAI_sessions.id"],
+            name="fk_LumenAI_agents_tenant_session",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "parent_agent_id"],
+            ["LumenAI_agents.tenant_id", "LumenAI_agents.id"],
+            name="fk_LumenAI_agents_tenant_parent",
+        ),
         Index("idx_LumenAI_agent_session", "session_id"),
         Index("idx_LumenAI_agent_tenant", "tenant_id"),
     )
@@ -103,8 +130,8 @@ class LumenAIEventRow(Base):
     __tablename__ = "LumenAI_events"
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    session_id = Column(String(36), ForeignKey("LumenAI_sessions.id"), nullable=False)
-    agent_id = Column(String(36), ForeignKey("LumenAI_agents.id"), nullable=True)
+    session_id = Column(String(36), nullable=False)
+    agent_id = Column(String(36), nullable=True)
     tenant_id = Column(String(64), nullable=False, index=True)
     trace_id = Column(String(64), default="")
     span_id = Column(String(32), default="")
@@ -124,10 +151,20 @@ class LumenAIEventRow(Base):
     tokens_out = Column(Integer, default=0)
 
     # Relationships
-    session = relationship("LumenAISession", back_populates="events")
-    agent = relationship("LumenAIAgent", back_populates="events")
+    session = relationship("LumenAISession", back_populates="events", overlaps="agent,events")
+    agent = relationship("LumenAIAgent", back_populates="events", overlaps="events,session")
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "session_id"],
+            ["LumenAI_sessions.tenant_id", "LumenAI_sessions.id"],
+            name="fk_LumenAI_events_tenant_session",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "agent_id"],
+            ["LumenAI_agents.tenant_id", "LumenAI_agents.id"],
+            name="fk_LumenAI_events_tenant_agent",
+        ),
         Index("idx_LumenAI_event_session_seq", "session_id", "sequence"),
         Index("idx_LumenAI_event_tenant_type", "tenant_id", "event_type"),
         Index("idx_LumenAI_event_timestamp", "timestamp"),
@@ -138,8 +175,8 @@ class LumenAIArtifact(Base):
     __tablename__ = "LumenAI_artifacts"
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    session_id = Column(String(36), ForeignKey("LumenAI_sessions.id"), nullable=False)
-    agent_id = Column(String(36), ForeignKey("LumenAI_agents.id"), nullable=True)
+    session_id = Column(String(36), nullable=False)
+    agent_id = Column(String(36), nullable=True)
     tenant_id = Column(String(64), nullable=False, index=True)
     type = Column(String(20), default="code")  # code|doc|plan|report|test|diff
     name = Column(String(255), default="")
@@ -151,10 +188,20 @@ class LumenAIArtifact(Base):
     metadata_ = Column("metadata", JSON, default=dict)
 
     # Relationships
-    session = relationship("LumenAISession", back_populates="artifacts")
-    agent = relationship("LumenAIAgent", back_populates="artifacts")
+    session = relationship("LumenAISession", back_populates="artifacts", overlaps="agent,artifacts")
+    agent = relationship("LumenAIAgent", back_populates="artifacts", overlaps="artifacts,session")
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "session_id"],
+            ["LumenAI_sessions.tenant_id", "LumenAI_sessions.id"],
+            name="fk_LumenAI_artifacts_tenant_session",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "agent_id"],
+            ["LumenAI_agents.tenant_id", "LumenAI_agents.id"],
+            name="fk_LumenAI_artifacts_tenant_agent",
+        ),
         Index("idx_LumenAI_artifact_session", "session_id"),
         Index("idx_LumenAI_artifact_tenant", "tenant_id"),
     )
@@ -164,8 +211,8 @@ class LumenAIApproval(Base):
     __tablename__ = "LumenAI_approvals"
 
     id = Column(String(36), primary_key=True, default=_uuid)
-    session_id = Column(String(36), ForeignKey("LumenAI_sessions.id"), nullable=False)
-    agent_id = Column(String(36), ForeignKey("LumenAI_agents.id"), nullable=True)
+    session_id = Column(String(36), nullable=False)
+    agent_id = Column(String(36), nullable=True)
     tenant_id = Column(String(64), nullable=False, index=True)
     type = Column(String(40), default="")
     status = Column(String(20), default="pending")  # pending|approved|rejected
@@ -180,6 +227,16 @@ class LumenAIApproval(Base):
     session = relationship("LumenAISession", back_populates="approvals")
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "session_id"],
+            ["LumenAI_sessions.tenant_id", "LumenAI_sessions.id"],
+            name="fk_LumenAI_approvals_tenant_session",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "agent_id"],
+            ["LumenAI_agents.tenant_id", "LumenAI_agents.id"],
+            name="fk_LumenAI_approvals_tenant_agent",
+        ),
         Index("idx_LumenAI_approval_tenant_status", "tenant_id", "status"),
     )
 

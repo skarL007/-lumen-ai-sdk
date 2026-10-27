@@ -34,11 +34,13 @@ def _isolate_global_tracer_provider():
     LumenAI._initialized = False
     LumenAI._provider = None
     LumenAI._exporter = None
+    LumenAI._runtime = None
     LumenAI._instrumentors = []
     yield
     LumenAI._initialized = False
     LumenAI._provider = None
     LumenAI._exporter = None
+    LumenAI._runtime = None
     LumenAI._instrumentors = []
     trace._TRACER_PROVIDER = saved_tp
     trace._TRACER_PROVIDER_SET_ONCE = saved_once
@@ -47,12 +49,13 @@ def _isolate_global_tracer_provider():
 class _Capture:
     def __init__(self):
         self.events = []
+        self.shutdown_count = 0
 
     def export(self, tenant_id, event):
         self.events.append((tenant_id, event))
 
     def shutdown(self):
-        pass
+        self.shutdown_count += 1
 
 
 def _emit_one_llm_span():
@@ -98,3 +101,44 @@ def test_init_adopts_externally_installed_provider():
     _emit_one_llm_span()
     LumenAI.shutdown()
     assert cap.events, "processors were attached to an orphan, not the installed provider"
+
+
+def test_external_provider_reinit_updates_exporter_without_duplicate_processors():
+    external = TracerProvider()
+    trace.set_tracer_provider(external)
+
+    cap1 = _Capture()
+    LumenAI.init(service_name="t1", default_tenant="one", exporter=cap1)
+    _emit_one_llm_span()
+    LumenAI.shutdown()
+
+    cap2 = _Capture()
+    LumenAI.init(service_name="t2", default_tenant="two", exporter=cap2)
+    _emit_one_llm_span()
+    LumenAI.shutdown()
+
+    assert len(cap1.events) == 1
+    assert len(cap2.events) == 1
+    assert cap1.shutdown_count == 1
+    assert cap2.shutdown_count == 1
+
+
+def test_exporter_shutdown_failure_does_not_leave_singleton_stuck():
+    class BadExporter(_Capture):
+        def shutdown(self):
+            super().shutdown()
+            raise RuntimeError("boom")
+
+    bad = BadExporter()
+    LumenAI.init(service_name="bad", default_tenant="a", exporter=bad)
+    LumenAI.shutdown()
+
+    assert LumenAI.is_initialized() is False
+    assert LumenAI._provider is None
+    assert LumenAI._runtime is None
+
+    cap = _Capture()
+    LumenAI.init(service_name="after", default_tenant="b", exporter=cap)
+    _emit_one_llm_span()
+    LumenAI.shutdown()
+    assert cap.events

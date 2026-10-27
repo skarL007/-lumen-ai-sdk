@@ -22,6 +22,7 @@ from lumen_ai.providers import (
     DefaultPricingProvider,
     RedisExporter,
 )
+from lumen_ai.runtime import LumenRuntimeState
 from lumen_ai.schema.semconv import PRICING_TABLE
 from lumen_ai.tracer import add_lumen_processors, create_tracer_provider
 
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 # Marks a TracerProvider that already carries the LumenAI processor chain, so
 # adopting the same provider twice never double-registers the processors.
 _ATTACHED_FLAG = "_lumen_ai_attached"
+_RUNTIME_ATTR = "_lumen_ai_runtime"
 
 
 def _reset_global_tracer_provider() -> None:
@@ -60,6 +62,7 @@ class LumenAI:
     _initialized: bool = False
     _provider = None
     _exporter: Optional[BaseLumenAIExporter] = None
+    _runtime: Optional[LumenRuntimeState] = None
     _instrumentors: list = []
     _owns_provider: bool = False
 
@@ -127,6 +130,11 @@ class LumenAI:
         if exporter is None and redis_url:
             exporter = RedisExporter(redis_url)
         cls._exporter = exporter
+        runtime = LumenRuntimeState(
+            default_tenant=default_tenant,
+            pricing_provider=pricing_provider,
+            exporter=exporter,
+        )
 
         # Tracer provider. OTel's set_tracer_provider is set-once, so if a real
         # SDK provider is already installed (ours from a prior init, or another
@@ -145,13 +153,23 @@ class LumenAI:
                     enable_otlp=enable_otlp,
                     otlp_endpoint=otlp_endpoint,
                     otlp_insecure=otlp_insecure,
+                    runtime=runtime,
                 )
                 setattr(current, _ATTACHED_FLAG, True)
+                setattr(current, _RUNTIME_ATTR, runtime)
                 logger.info("LumenAI adopted the already-installed TracerProvider")
             else:
                 logger.warning(
                     "LumenAI processors already attached to the active provider — skipping"
                 )
+            attached_runtime = getattr(current, _RUNTIME_ATTR, None)
+            if isinstance(attached_runtime, LumenRuntimeState):
+                attached_runtime.configure(
+                    default_tenant=default_tenant,
+                    pricing_provider=pricing_provider,
+                    exporter=exporter,
+                )
+                runtime = attached_runtime
             cls._provider = current
             cls._owns_provider = False
         else:
@@ -163,10 +181,13 @@ class LumenAI:
                 exporter=exporter,
                 enable_otlp=enable_otlp,
                 otlp_insecure=otlp_insecure,
+                runtime=runtime,
             )
             setattr(cls._provider, _ATTACHED_FLAG, True)
+            setattr(cls._provider, _RUNTIME_ATTR, runtime)
             trace.set_tracer_provider(cls._provider)
             cls._owns_provider = True
+        cls._runtime = runtime
 
         # Instrumentors (Celery, OpenLIT, etc.)
         for inst in instrumentors or []:
@@ -208,14 +229,19 @@ class LumenAI:
                 cls._provider.force_flush()
             except Exception:
                 logger.debug("TracerProvider force_flush raised", exc_info=True)
-        if cls._exporter:
-            cls._exporter.shutdown()
-        cls._initialized = False
-        cls._owns_provider = False
-        cls._provider = None
-        cls._exporter = None
-        cls._instrumentors = []
-        logger.info("LumenAI shut down")
+        try:
+            if cls._runtime is not None:
+                cls._runtime.shutdown_exporter()
+            elif cls._exporter:
+                cls._exporter.shutdown()
+        finally:
+            cls._initialized = False
+            cls._owns_provider = False
+            cls._provider = None
+            cls._exporter = None
+            cls._runtime = None
+            cls._instrumentors = []
+            logger.info("LumenAI shut down")
 
     @classmethod
     def is_initialized(cls) -> bool:

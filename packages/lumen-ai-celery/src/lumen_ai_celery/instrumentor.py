@@ -9,6 +9,7 @@ import threading
 import time
 
 from lumen_ai import BaseInstrumentor
+from lumen_ai.processors.tenant import sanitize_tenant_id
 from lumen_ai.schema.semconv import (
     GenAIAttributes,
     LumenAIAttributes,
@@ -123,7 +124,7 @@ class CeleryInstrumentor(BaseInstrumentor):
         # Extract tenant_id from task kwargs if passed
         tenant_id = ""
         if kwargs and isinstance(kwargs, dict):
-            tenant_id = kwargs.get("tenant_id", "")
+            tenant_id = sanitize_tenant_id(kwargs.get("tenant_id", ""))
         if tenant_id:
             span.set_attribute(LumenAIAttributes.TENANT_ID, tenant_id)
 

@@ -48,6 +48,7 @@ def test_top_level_api_exports_stable_helpers():
         clear_tenant_id,
         get_tenant_id,
         lumen_tenant,
+        reset_tenant_id,
         set_tenant_id,
     )
 
@@ -59,6 +60,7 @@ def test_top_level_api_exports_stable_helpers():
     assert get_tenant_id is not None
     assert clear_tenant_id is not None
     assert lumen_tenant is not None
+    assert reset_tenant_id is not None
     assert "tenant_id" in LumenAIEvent.__annotations__
     assert "cost_usd" in LumenAIEvent.__annotations__
 

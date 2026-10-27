@@ -15,7 +15,7 @@ from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.trace import StatusCode
 
 from lumen_ai.processors.cost import pop_span_cost_data
-from lumen_ai.processors.tenant import pop_span_tenant
+from lumen_ai.processors.tenant import pop_span_tenant, sanitize_tenant_id
 from lumen_ai.providers import BaseLumenAIExporter
 from lumen_ai.schema.event_types import EventType, LumenAIEvent, Severity
 from lumen_ai.schema.semconv import (
@@ -57,6 +57,21 @@ def _attribute_to_str(value: object) -> str:
     if isinstance(value, (str, int, float, bool)):
         return str(value)
     return ""
+
+
+def _attribute_to_int(value: object) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
 
 
 def _is_error(span: ReadableSpan) -> bool:
@@ -113,8 +128,9 @@ class EventNormalizerProcessor(SpanProcessor):
         exporter: Optional BaseLumenAIExporter. If None, events are only logged.
     """
 
-    def __init__(self, exporter: Optional[BaseLumenAIExporter] = None) -> None:
+    def __init__(self, exporter: Optional[BaseLumenAIExporter] = None, runtime=None) -> None:
         self._exporter = exporter
+        self._runtime = runtime
 
     def on_start(self, span, parent_context=None) -> None:
         pass
@@ -127,10 +143,31 @@ class EventNormalizerProcessor(SpanProcessor):
             cost_data = pop_span_cost_data(span)
             tenant_id = (
                 pop_span_tenant(span)
-                or _attribute_to_str(attrs.get(LumenAIAttributes.TENANT_ID))
+                or sanitize_tenant_id(_attribute_to_str(attrs.get(LumenAIAttributes.TENANT_ID)))
                 or "default"
             )
             error = _is_error(span)
+            model = (
+                cost_data.get("model")
+                or _attribute_to_str(attrs.get(GenAIAttributes.REQUEST_MODEL))
+                or _attribute_to_str(attrs.get(GenAIAttributes.RESPONSE_MODEL))
+                or _attribute_to_str(attrs.get(OpenInferenceAttributes.MODEL_NAME))
+            )
+            tokens_in = cost_data.get("input_tokens")
+            if tokens_in is None:
+                tokens_in = (
+                    _attribute_to_int(attrs.get(GenAIAttributes.USAGE_INPUT_TOKENS))
+                    or _attribute_to_int(attrs.get(OpenInferenceAttributes.TOKEN_COUNT_PROMPT))
+                )
+            tokens_out = cost_data.get("output_tokens")
+            if tokens_out is None:
+                tokens_out = (
+                    _attribute_to_int(attrs.get(GenAIAttributes.USAGE_OUTPUT_TOKENS))
+                    or _attribute_to_int(attrs.get(OpenInferenceAttributes.TOKEN_COUNT_COMPLETION))
+                )
+            cache_read_tokens = cost_data.get("cache_read_tokens")
+            if cache_read_tokens is None:
+                cache_read_tokens = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_CACHE_READ))
 
             event: LumenAIEvent = {
                 "id": str(uuid.uuid4()),
@@ -147,18 +184,19 @@ class EventNormalizerProcessor(SpanProcessor):
                 "is_error": error,
                 # Cost data — zero if CostProcessor did not run or found no pricing
                 "cost_usd": cost_data.get("cost_usd", 0.0),
-                "tokens_in": cost_data.get("input_tokens", 0),
-                "tokens_out": cost_data.get("output_tokens", 0),
-                "cache_read_tokens": cost_data.get("cache_read_tokens", 0),
+                "tokens_in": tokens_in,
+                "tokens_out": tokens_out,
+                "cache_read_tokens": cache_read_tokens,
                 # Model / tool metadata
-                "model": cost_data.get("model") or _attribute_to_str(attrs.get(GenAIAttributes.REQUEST_MODEL)),
+                "model": model,
                 "tool_name": _attribute_to_str(attrs.get(GenAIAttributes.TOOL_NAME)),
                 "span_kind": _attribute_to_str(attrs.get(OpenInferenceAttributes.SPAN_KIND)),
             }
 
-            if self._exporter:
+            exporter = self._runtime.exporter if self._runtime is not None else self._exporter
+            if exporter:
                 try:
-                    self._exporter.export(tenant_id, event)
+                    exporter.export(tenant_id, event)
                     _incr("events_exported")
                 except Exception:
                     _incr("export_errors")
@@ -174,7 +212,9 @@ class EventNormalizerProcessor(SpanProcessor):
             logger.warning("EventNormalizerProcessor.on_end failed silently", exc_info=True)
 
     def shutdown(self) -> None:
-        if self._exporter:
+        if self._runtime is not None:
+            self._runtime.shutdown_exporter()
+        elif self._exporter:
             try:
                 self._exporter.shutdown()
             except Exception:

@@ -8,6 +8,7 @@ from lumen_ai.processors.tenant import (
     clear_tenant_id,
     get_tenant_id,
     lumen_tenant,
+    reset_tenant_id,
     set_tenant_id,
 )
 from lumen_ai.providers import AsyncRedisExporter, JsonlExporter, RedisExporter
@@ -24,6 +25,7 @@ __all__ = [
     "clear_tenant_id",
     "get_tenant_id",
     "lumen_tenant",
+    "reset_tenant_id",
     "set_tenant_id",
 ]
 __version__ = "0.1.4"
