@@ -2,7 +2,7 @@
 LumenAI + Celery - track AI costs in background tasks.
 
 Prerequisites:
-    pip install lumen-ai-core lumen-ai-celery redis celery
+    pip install lumen-ai-sdk lumen-ai-sdk-celery redis celery
 
 Start Redis:
     docker run -d -p 6379:6379 redis:7

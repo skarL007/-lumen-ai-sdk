@@ -35,7 +35,7 @@ def record() -> dict:
         events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
     return {
-        "recorded_with": f"lumen-ai-core {version('lumen-ai-core')}",
+        "recorded_with": f"lumen-ai-sdk {version('lumen-ai-sdk')}",
         "scenario": "examples/multi-tenant-cost-report",
         "events": events,
     }

@@ -6,7 +6,7 @@ Shows how to write your own exporter to send events to any sink
 For built-in local JSONL output, prefer `JsonlExporter`.
 
 Usage:
-    pip install lumen-ai-core
+    pip install lumen-ai-sdk
     python main.py
 """
 import json

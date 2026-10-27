@@ -1,6 +1,6 @@
-# lumen-ai-celery
+# lumen-ai-sdk-celery
 
-Celery integration for LumenAI.
+Celery integration for LumenAI. Versions up to 0.1.3 were published as `lumen-ai-celery`.
 
 ## Includes
 
@@ -12,7 +12,7 @@ Celery integration for LumenAI.
 ## Install
 
 ```bash
-pip install lumen-ai-celery
+pip install lumen-ai-sdk-celery
 ```
 
 ## Usage

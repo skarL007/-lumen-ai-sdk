@@ -5,7 +5,7 @@
 [![Status: Alpha](https://img.shields.io/badge/status-alpha-orange?style=flat-square)](#status)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue?style=flat-square)](https://www.python.org/)
-[![PyPI](https://img.shields.io/pypi/v/lumen-ai-core?style=flat-square&label=lumen-ai-core)](https://pypi.org/project/lumen-ai-core/)
+[![PyPI](https://img.shields.io/pypi/v/lumen-ai-sdk?style=flat-square&label=lumen-ai-sdk)](https://pypi.org/project/lumen-ai-sdk/)
 [![CI](https://github.com/skarL007/lumen-ai-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/skarL007/lumen-ai-sdk/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-lumen--ai--sdk--demo.vercel.app-black?style=flat-square&logo=vercel)](https://lumen-ai-sdk-demo.vercel.app)
 
@@ -257,20 +257,24 @@ The Redis asyncio client is bound to the loop that created it, so all I/O runs o
 
 ### Install
 
-`0.1.4` is the source in this repository. PyPI still serves `0.1.3` until the next release, so install from Git or a checkout:
+```bash
+pip install lumen-ai-sdk
+# optional
+pip install lumen-ai-sdk-celery
+pip install lumen-ai-sdk-openlit
+```
+
+| Package | Folder | Purpose | Install when |
+|---|---|---|---|
+| `lumen-ai-sdk` | `packages/lumen-ai-core` | Processors, pricing, event schema, Redis and JSONL exporters, tenant helpers | Always |
+| `lumen-ai-sdk-celery` | `packages/lumen-ai-celery` | Celery signal instrumentation for task lifecycle spans | You run Celery workers |
+| `lumen-ai-sdk-openlit` | `packages/lumen-ai-openlit` | Points OpenLIT auto-instrumentation at the LumenAI tracer provider | You want provider/framework auto-instrumentation |
+
+The import names are `lumen_ai`, `lumen_ai_celery` and `lumen_ai_openlit`. Versions up to `0.1.3` were published as `lumen-ai-core`, `lumen-ai-celery` and `lumen-ai-openlit`; those names get no new releases. To run the latest `main`, install from Git:
 
 ```bash
 pip install "git+https://github.com/skarL007/lumen-ai-sdk.git#subdirectory=packages/lumen-ai-core"
-# optional
-pip install "git+https://github.com/skarL007/lumen-ai-sdk.git#subdirectory=packages/lumen-ai-celery"
-pip install "git+https://github.com/skarL007/lumen-ai-sdk.git#subdirectory=packages/lumen-ai-openlit"
 ```
-
-| Package | Purpose | Install when |
-|---|---|---|
-| `lumen-ai-core` | Processors, pricing, event schema, Redis and JSONL exporters, tenant helpers | Always |
-| `lumen-ai-celery` | Celery signal instrumentation for task lifecycle spans | You run Celery workers |
-| `lumen-ai-openlit` | Points OpenLIT auto-instrumentation at the LumenAI tracer provider | You want provider/framework auto-instrumentation |
 
 ### JSON Lines (no services)
 
@@ -442,7 +446,7 @@ Alpha. The core contracts are covered by tests and usable for evaluation and ear
 |---|---|
 | Core processors, exporters, tenant isolation | Covered by unit, integration, and regression tests |
 | Release gate | `scripts/release_gate.py`: tests, ruff, mypy, wheel and sdist builds, `twine check`, clean installs, `pip check` |
-| PyPI | `0.1.3` published; `0.1.4` pending release |
+| PyPI | `lumen-ai-sdk`, `lumen-ai-sdk-celery` and `lumen-ai-sdk-openlit` from `0.1.4`; `0.1.3` and older as `lumen-ai-core`, `lumen-ai-celery` and `lumen-ai-openlit` |
 | Storage models | SQLAlchemy models with tenant-scoped constraints for new schemas; no Alembic migrations yet |
 | Dashboard | [Live demo](https://lumen-ai-sdk-demo.vercel.app) on Vercel, plus local JSONL and Redis modes and a static replay; not a hosted control plane |
 

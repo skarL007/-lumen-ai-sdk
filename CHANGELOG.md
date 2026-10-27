@@ -30,6 +30,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **providers**: `AsyncRedisExporter.shutdown()` now waits for in-flight auto-flush futures before closing Redis and its background loop.
 - **tenant**: span attributes, Celery kwargs, tenant context, and exporter stream keys now share the same tenant sanitization path; `reset_tenant_id(token)` is public.
 
+### Changed (packaging)
+- PyPI distribution names are now `lumen-ai-sdk`, `lumen-ai-sdk-celery` and `lumen-ai-sdk-openlit`, matching the repository. Import names do not change. `lumen-ai-core`, `lumen-ai-celery` and `lumen-ai-openlit` stay at `0.1.3` and get no new releases.
+
 ### Removed
 - `lumen-simulation.html` and `lumen-ai-demo/`, standalone mock dashboards that did not run the SDK; the demo dashboard replaces them.
 

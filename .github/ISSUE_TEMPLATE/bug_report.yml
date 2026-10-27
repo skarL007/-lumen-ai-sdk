@@ -21,9 +21,9 @@ body:
     attributes:
       label: Package
       options:
-        - lumen-ai-core
-        - lumen-ai-celery
-        - lumen-ai-openlit
+        - lumen-ai-sdk
+        - lumen-ai-sdk-celery
+        - lumen-ai-sdk-openlit
     validations:
       required: true
 

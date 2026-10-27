@@ -69,9 +69,9 @@ Do not publish while any of these are true:
 6. Publish through the hardened Trusted Publishing workflow.
 7. Confirm PyPI shows `0.1.4` for:
 
-- `lumen-ai-core`
-- `lumen-ai-celery`
-- `lumen-ai-openlit`
+- `lumen-ai-sdk`
+- `lumen-ai-sdk-celery`
+- `lumen-ai-sdk-openlit`
 
 8. Rerun dependency audit against PyPI-installed `0.1.4` artifacts.
 

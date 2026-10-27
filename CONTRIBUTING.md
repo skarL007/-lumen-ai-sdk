@@ -154,7 +154,7 @@ PRICING_TABLE: dict[str, dict[str, float]] = {
 If something is broken or confusing, please open an issue. Good bug reports include:
 
 - Python version (`python --version`)
-- Package version (`pip show lumen-ai-core`)
+- Package version (`pip show lumen-ai-sdk`)
 - Minimal reproduction script
 - What you expected vs. what happened
 - Full traceback if applicable
