@@ -2,9 +2,12 @@
 TenantSpanProcessor — ensures every span carries tenant_id.
 
 Resolution order:
-  1. ContextVar set via set_tenant_id() — preferred (middleware / FastAPI Depends)
-  2. Span attribute already set by caller
-  3. default_tenant passed at processor construction
+  on_start  ContextVar set via set_tenant_id() / lumen_tenant(), else the
+            runtime default_tenant. The result is stamped on the span.
+  on_end    The tenant stamped on the span wins; the live ContextVar and the
+            default are only fallbacks for spans that were never stamped. This
+            keeps a span that ENDS inside another tenant's context attributed
+            to the tenant it STARTED in.
 
 Side-dict (OrderedDict) keyed by trace_id:span_id is GC-safe and
 non-destructive — downstream processors can read tenant without
@@ -27,6 +30,7 @@ from typing import Generator, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 
+from lumen_ai._attributes import attr_str, span_key
 from lumen_ai.schema.semconv import LumenAIAttributes
 
 logger = logging.getLogger(__name__)
@@ -126,7 +130,7 @@ def get_span_tenant(span: ReadableSpan) -> str:
     Non-destructive — safe to call multiple times.
     Returns empty string if span has no context or tenant was not recorded.
     """
-    key = _span_key(span)
+    key = span_key(span)
     if not key:
         return ""
     with _map_lock:
@@ -140,7 +144,7 @@ def pop_span_tenant(span: ReadableSpan) -> str:
     The downstream normalizer calls this so each span's side-map entry is freed
     once consumed (bounds memory and prevents a later id-reuse stale read).
     """
-    key = _span_key(span)
+    key = span_key(span)
     if not key:
         return ""
     with _map_lock:
@@ -150,22 +154,6 @@ def pop_span_tenant(span: ReadableSpan) -> str:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
-
-def _span_key(span: ReadableSpan) -> str:
-    """Stable, collision-resistant key from OTel IDs."""
-    ctx = span.context
-    if ctx and ctx.trace_id and ctx.span_id:
-        return f"{ctx.trace_id:032x}:{ctx.span_id:016x}"
-    return ""
-
-
-def _attribute_to_str(value: object) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, (str, int, float, bool)):
-        return str(value).strip()
-    return ""
-
 
 def _store_tenant(key: str, tenant: str) -> None:
     """Thread-safe write with LRU eviction."""
@@ -226,7 +214,7 @@ class TenantSpanProcessor(SpanProcessor):
             # (cross-tenant cost/metadata leak — see SECURITY.md).
             tenant = (
                 sanitize_tenant_id(
-                    _attribute_to_str(attrs.get(LumenAIAttributes.TENANT_ID, ""))
+                    attr_str(attrs.get(LumenAIAttributes.TENANT_ID, ""))
                 )
                 or get_tenant_id()
                 or self._fallback_tenant()
@@ -239,7 +227,7 @@ class TenantSpanProcessor(SpanProcessor):
                     tenant,
                 )
 
-            key = _span_key(span)
+            key = span_key(span)
             if key:
                 _store_tenant(key, tenant)
 

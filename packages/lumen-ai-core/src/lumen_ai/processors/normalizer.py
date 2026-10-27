@@ -14,6 +14,7 @@ from typing import Optional
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.trace import StatusCode
 
+from lumen_ai._attributes import first_int, first_str
 from lumen_ai.processors.cost import pop_span_cost_data
 from lumen_ai.processors.tenant import pop_span_tenant, sanitize_tenant_id
 from lumen_ai.providers import BaseLumenAIExporter
@@ -51,29 +52,6 @@ def reset_metrics() -> None:
             _metrics[key] = 0
 
 
-def _attribute_to_str(value: object) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, (str, int, float, bool)):
-        return str(value)
-    return ""
-
-
-def _attribute_to_int(value: object) -> int:
-    if value is None:
-        return 0
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, (int, float)):
-        return int(value)
-    if isinstance(value, str):
-        try:
-            return int(value)
-        except ValueError:
-            return 0
-    return 0
-
-
 def _is_error(span: ReadableSpan) -> bool:
     """Return True if span ended in an error state."""
     status = span.status
@@ -91,9 +69,9 @@ def _is_error(span: ReadableSpan) -> bool:
 def _span_to_event_type(span: ReadableSpan) -> str:
     """Infer canonical event type from span attributes and status."""
     attrs = span.attributes or {}
-    span_kind = _attribute_to_str(attrs.get(OpenInferenceAttributes.SPAN_KIND))
-    op_name = _attribute_to_str(attrs.get(GenAIAttributes.OPERATION_NAME))
-    tool_name = _attribute_to_str(attrs.get(GenAIAttributes.TOOL_NAME))
+    span_kind = first_str(attrs, OpenInferenceAttributes.SPAN_KIND)
+    op_name = first_str(attrs, GenAIAttributes.OPERATION_NAME)
+    tool_name = first_str(attrs, GenAIAttributes.TOOL_NAME)
     error = _is_error(span)
 
     if span_kind == "TOOL" or tool_name:
@@ -111,13 +89,26 @@ def _span_to_event_type(span: ReadableSpan) -> str:
     if span_kind == "CHAIN":
         return EventType.TASK_FAILED if error else EventType.TASK_COMPLETED
 
-    return EventType.AGENT_COMPLETED
+    # Spans with no GenAI/OpenInference kind (HTTP handlers, custom work) are
+    # reported as generic agent steps — but a failed one must still read as failed.
+    return EventType.AGENT_FAILED if error else EventType.AGENT_COMPLETED
 
 
 def _span_duration_ms(span: ReadableSpan) -> int:
     if span.start_time and span.end_time:
         return int((span.end_time - span.start_time) / 1_000_000)
     return 0
+
+
+def _span_timestamp(span: ReadableSpan) -> str:
+    """ISO-8601 UTC time the span ended — not the time it was exported.
+
+    Exporters can batch or retry, so wall-clock time at export would skew cost
+    timelines; the span's own end_time (ns since epoch) is the event time.
+    """
+    if span.end_time:
+        return datetime.fromtimestamp(span.end_time / 1_000_000_000, tz=timezone.utc).isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 class EventNormalizerProcessor(SpanProcessor):
@@ -143,40 +134,45 @@ class EventNormalizerProcessor(SpanProcessor):
             cost_data = pop_span_cost_data(span)
             tenant_id = (
                 pop_span_tenant(span)
-                or sanitize_tenant_id(_attribute_to_str(attrs.get(LumenAIAttributes.TENANT_ID)))
+                or sanitize_tenant_id(first_str(attrs, LumenAIAttributes.TENANT_ID))
                 or "default"
             )
             error = _is_error(span)
-            model = (
-                cost_data.get("model")
-                or _attribute_to_str(attrs.get(GenAIAttributes.REQUEST_MODEL))
-                or _attribute_to_str(attrs.get(GenAIAttributes.RESPONSE_MODEL))
-                or _attribute_to_str(attrs.get(OpenInferenceAttributes.MODEL_NAME))
+            model = cost_data.get("model") or first_str(
+                attrs,
+                GenAIAttributes.REQUEST_MODEL,
+                GenAIAttributes.RESPONSE_MODEL,
+                OpenInferenceAttributes.MODEL_NAME,
             )
             tokens_in = cost_data.get("input_tokens")
             if tokens_in is None:
-                tokens_in = (
-                    _attribute_to_int(attrs.get(GenAIAttributes.USAGE_INPUT_TOKENS))
-                    or _attribute_to_int(attrs.get(OpenInferenceAttributes.TOKEN_COUNT_PROMPT))
+                tokens_in = first_int(
+                    attrs,
+                    GenAIAttributes.USAGE_INPUT_TOKENS,
+                    OpenInferenceAttributes.TOKEN_COUNT_PROMPT,
                 )
             tokens_out = cost_data.get("output_tokens")
             if tokens_out is None:
-                tokens_out = (
-                    _attribute_to_int(attrs.get(GenAIAttributes.USAGE_OUTPUT_TOKENS))
-                    or _attribute_to_int(attrs.get(OpenInferenceAttributes.TOKEN_COUNT_COMPLETION))
+                tokens_out = first_int(
+                    attrs,
+                    GenAIAttributes.USAGE_OUTPUT_TOKENS,
+                    OpenInferenceAttributes.TOKEN_COUNT_COMPLETION,
                 )
             cache_read_tokens = cost_data.get("cache_read_tokens")
             if cache_read_tokens is None:
-                cache_read_tokens = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_CACHE_READ))
+                cache_read_tokens = first_int(attrs, GenAIAttributes.USAGE_CACHE_READ)
 
             event: LumenAIEvent = {
                 "id": str(uuid.uuid4()),
                 "tenant_id": tenant_id,
-                "session_id": _attribute_to_str(attrs.get(LumenAIAttributes.SESSION_ID)),
-                "agent_id": _attribute_to_str(attrs.get(LumenAIAttributes.AGENT_ID)),
+                # LumenAI keys first, then the OTel GenAI equivalents.
+                "session_id": first_str(
+                    attrs, LumenAIAttributes.SESSION_ID, GenAIAttributes.CONVERSATION_ID
+                ),
+                "agent_id": first_str(attrs, LumenAIAttributes.AGENT_ID, GenAIAttributes.AGENT_ID),
                 "trace_id": format(span.context.trace_id, "032x") if span.context else "",
                 "span_id": format(span.context.span_id, "016x") if span.context else "",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": _span_timestamp(span),
                 "event_type": _span_to_event_type(span),
                 "severity": Severity.ERROR if error else Severity.INFO,
                 "message": span.name or "",
@@ -189,8 +185,8 @@ class EventNormalizerProcessor(SpanProcessor):
                 "cache_read_tokens": cache_read_tokens,
                 # Model / tool metadata
                 "model": model,
-                "tool_name": _attribute_to_str(attrs.get(GenAIAttributes.TOOL_NAME)),
-                "span_kind": _attribute_to_str(attrs.get(OpenInferenceAttributes.SPAN_KIND)),
+                "tool_name": first_str(attrs, GenAIAttributes.TOOL_NAME),
+                "span_kind": first_str(attrs, OpenInferenceAttributes.SPAN_KIND),
             }
 
             exporter = self._runtime.exporter if self._runtime is not None else self._exporter
@@ -221,4 +217,13 @@ class EventNormalizerProcessor(SpanProcessor):
                 logger.debug("Exporter shutdown raised", exc_info=True)
 
     def force_flush(self, timeout_millis: Optional[int] = None) -> bool:
-        return True
+        """Flush buffered events in the exporter (e.g. AsyncRedisExporter)."""
+        exporter = self._runtime.exporter if self._runtime is not None else self._exporter
+        flush = getattr(exporter, "force_flush", None)
+        if flush is None:  # duck-typed exporter without a flush hook
+            return True
+        try:
+            return bool(flush(timeout_millis))
+        except Exception:
+            logger.warning("Exporter force_flush raised", exc_info=True)
+            return False

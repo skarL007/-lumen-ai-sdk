@@ -214,7 +214,7 @@ class LumenAI:
             try:
                 inst.uninstrument()
             except Exception:
-                pass
+                logger.debug("Failed to uninstrument %s", type(inst).__name__, exc_info=True)
         if cls._owns_provider and cls._provider is not None:
             # We installed this provider — shut it down and free the OTel global
             # so a later init() can install a fresh, live provider.

@@ -1,8 +1,9 @@
 """
 CostComputingSpanProcessor — computes USD cost per span on end.
 
-Reads gen_ai.usage.* attributes, looks up pricing provider, stores
-result in a thread-safe OrderedDict keyed by trace_id:span_id (GC-safe).
+Reads token usage (OTel GenAI ``gen_ai.usage.*``, falling back to
+OpenInference ``llm.token_count.*``), looks up the pricing provider, and stores
+the result in a thread-safe OrderedDict keyed by trace_id:span_id (GC-safe).
 
 Must run AFTER TenantSpanProcessor in the processor chain.
 """
@@ -13,6 +14,7 @@ from typing import Optional
 
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 
+from lumen_ai._attributes import first_int, first_str, span_key
 from lumen_ai.providers import BasePricingProvider
 from lumen_ai.schema.semconv import (
     GenAIAttributes,
@@ -29,36 +31,6 @@ _MAX_ENTRIES = 50_000
 _EVICT_BATCH = _MAX_ENTRIES // 10
 
 
-def _span_key(span: ReadableSpan) -> str:
-    ctx = span.context
-    if ctx and ctx.trace_id and ctx.span_id:
-        return f"{ctx.trace_id:032x}:{ctx.span_id:016x}"
-    return ""
-
-
-def _attribute_to_str(value: object) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, (str, int, float, bool)):
-        return str(value)
-    return ""
-
-
-def _attribute_to_int(value: object) -> int:
-    if value is None:
-        return 0
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, (int, float)):
-        return int(value)
-    if isinstance(value, str):
-        try:
-            return int(value)
-        except ValueError:
-            return 0
-    return 0
-
-
 def _store_cost(key: str, data: dict) -> None:
     with _map_lock:
         if key in _span_cost_map:
@@ -71,7 +43,7 @@ def _store_cost(key: str, data: dict) -> None:
 
 def get_span_cost_data(span: ReadableSpan) -> dict:
     """Retrieve computed cost data for a span (non-destructive read)."""
-    key = _span_key(span)
+    key = span_key(span)
     if not key:
         return {}
     with _map_lock:
@@ -85,7 +57,7 @@ def pop_span_cost_data(span: ReadableSpan) -> dict:
     The downstream normalizer calls this so each span's side-map entry is freed
     once consumed (bounds memory and prevents a later id-reuse stale read).
     """
-    key = _span_key(span)
+    key = span_key(span)
     if not key:
         return {}
     with _map_lock:
@@ -121,10 +93,11 @@ class CostComputingSpanProcessor(SpanProcessor):
         try:
             attrs = span.attributes or {}
 
-            model = (
-                _attribute_to_str(attrs.get(GenAIAttributes.REQUEST_MODEL))
-                or _attribute_to_str(attrs.get(GenAIAttributes.RESPONSE_MODEL))
-                or _attribute_to_str(attrs.get(OpenInferenceAttributes.MODEL_NAME))
+            model = first_str(
+                attrs,
+                GenAIAttributes.REQUEST_MODEL,
+                GenAIAttributes.RESPONSE_MODEL,
+                OpenInferenceAttributes.MODEL_NAME,
             )
             if not model:
                 return
@@ -146,9 +119,20 @@ class CostComputingSpanProcessor(SpanProcessor):
                 logger.debug("No pricing found for model '%s' — cost skipped", model)
                 return
 
-            input_tokens = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_INPUT_TOKENS))
-            output_tokens = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_OUTPUT_TOKENS))
-            cache_read = _attribute_to_int(attrs.get(GenAIAttributes.USAGE_CACHE_READ))
+            # OpenInference-only emitters (e.g. Arize Phoenix instrumentation)
+            # report usage as llm.token_count.*; without this fallback their
+            # spans would be priced at $0 even when the model is known.
+            input_tokens = first_int(
+                attrs,
+                GenAIAttributes.USAGE_INPUT_TOKENS,
+                OpenInferenceAttributes.TOKEN_COUNT_PROMPT,
+            )
+            output_tokens = first_int(
+                attrs,
+                GenAIAttributes.USAGE_OUTPUT_TOKENS,
+                OpenInferenceAttributes.TOKEN_COUNT_COMPLETION,
+            )
+            cache_read = first_int(attrs, GenAIAttributes.USAGE_CACHE_READ)
 
             # Cache-only spans (input==output==0, cache_read>0) still have real cost.
             if input_tokens == 0 and output_tokens == 0 and cache_read == 0:
@@ -156,17 +140,14 @@ class CostComputingSpanProcessor(SpanProcessor):
 
             # Some emitters (OpenAI/Azure) fold cached tokens into input_tokens; bill
             # only the non-cached remainder at input rate so cache isn't charged twice.
-            provider = (
-                _attribute_to_str(attrs.get(GenAIAttributes.PROVIDER_NAME))
-                or _attribute_to_str(attrs.get(GenAIAttributes.SYSTEM))
-            )
+            provider = first_str(attrs, GenAIAttributes.PROVIDER_NAME, GenAIAttributes.SYSTEM)
             billable_input = input_tokens
             if cache_read and provider_includes_cache_in_input(provider):
                 billable_input = max(input_tokens - cache_read, 0)
 
             cost_usd = self._compute_cost(pricing, billable_input, output_tokens, cache_read)
 
-            key = _span_key(span)
+            key = span_key(span)
             if not key:
                 return
 
