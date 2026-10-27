@@ -1,0 +1,7 @@
+# Runtime dependencies of the hosted demo on Vercel (vercel_app.py).
+# lumen-ai-core itself is imported from packages/lumen-ai-core/src in this
+# repository; these are its runtime dependencies plus FastAPI.
+fastapi>=0.115
+opentelemetry-api>=1.30.0
+opentelemetry-sdk>=1.30.0
+opentelemetry-instrumentation>=0.40b0
