@@ -7,10 +7,11 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue?style=flat-square)](https://www.python.org/)
 [![PyPI](https://img.shields.io/pypi/v/lumen-ai-core?style=flat-square&label=lumen-ai-core)](https://pypi.org/project/lumen-ai-core/)
 [![CI](https://github.com/skarL007/lumen-ai-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/skarL007/lumen-ai-sdk/actions/workflows/ci.yml)
+[![Live demo](https://img.shields.io/badge/live%20demo-lumen--ai--sdk--demo.vercel.app-black?style=flat-square&logo=vercel)](https://lumen-ai-sdk-demo.vercel.app)
 
-![LumenAI demo dashboard after the three-tenant scenario: $0.190000 in total, cost per tenant, and checks for tenant isolation, privacy, failed-call billing, and prompt caching](docs/assets/lumen-dashboard.png)
+[![LumenAI demo dashboard after the three-tenant scenario: $0.190000 in total, cost per tenant, and checks for tenant isolation, privacy, failed-call billing, and prompt caching](docs/assets/lumen-dashboard.png)](https://lumen-ai-sdk-demo.vercel.app)
 
-<sub>The [demo dashboard](#see-it-in-a-dashboard) after one run of the scenario below. Every number on it is read back from what the exporter wrote.</sub>
+<sub>**[Open the live demo](https://lumen-ai-sdk-demo.vercel.app)**: the scenario below, run by the real SDK on each request. Every number on it is read from what the exporter received.</sub>
 
 - [Reproducible demo](#reproducible-demo-60-seconds-no-keys)
 - [See it in a dashboard](#see-it-in-a-dashboard)
@@ -80,21 +81,21 @@ Open `.runtime/cost-report.jsonl` to see the raw events. The script is [examples
 
 ## See it in a dashboard
 
-The same workload, behind a small FastAPI app with a dashboard. Still no Docker, Redis, or API key:
-
-```bash
-pip install -e packages/lumen-ai-core fastapi uvicorn
-uvicorn main:app --app-dir examples/local-observability-demo
-```
-
-Open http://localhost:8000 and press **Run the 3-tenant scenario**. The app replays the workload above through LumenAI, reads the events back from the JSONL file, and shows:
+**Live: [lumen-ai-sdk-demo.vercel.app](https://lumen-ai-sdk-demo.vercel.app)**. The same workload, behind a small FastAPI app with a dashboard, hosted on Vercel. Each request runs the SDK on the server and returns the events the exporter received; nothing is stored, so visitors never see each other's spans. The page shows:
 
 - **Cost by tenant**, with the same `$0.190000` total as the report above.
 - **What the events prove**: the cross-tenant span billed to `acme-health`, zero prompt or response fields, the failed retry still charged for its input tokens, and the cache-read tokens priced at the cache rate.
 - **Exported events**: one row per event, with the raw JSON a click away.
 - **Send your own span**: pick a tenant, any model in the price table, and token counts, then see the event LumenAI exports.
 
-Set `REDIS_URL` (or run `docker compose up --build` in that folder) to store events in Redis Streams instead. `record.py` saves a run to `static/recorded-events.json`; served without the backend, from any static host, the page replays that recording. The API and details are in [examples/local-observability-demo](examples/local-observability-demo).
+To run it on your machine, still with no Docker, Redis, or API key:
+
+```bash
+pip install -e packages/lumen-ai-core fastapi uvicorn
+uvicorn main:app --app-dir examples/local-observability-demo   # then open http://localhost:8000
+```
+
+Locally, events go to a JSONL file and the dashboard reads them back from it. Set `REDIS_URL` (or run `docker compose up --build` in that folder) to store them in Redis Streams instead. `record.py` saves a run to `static/recorded-events.json`; served without the backend, from any static host, the page replays that recording. The API, the Vercel setup, and the other details are in [examples/local-observability-demo](examples/local-observability-demo).
 
 ## How it works
 
@@ -443,7 +444,7 @@ Alpha. The core contracts are covered by tests and usable for evaluation and ear
 | Release gate | `scripts/release_gate.py`: tests, ruff, mypy, wheel and sdist builds, `twine check`, clean installs, `pip check` |
 | PyPI | `0.1.3` published; `0.1.4` pending release |
 | Storage models | SQLAlchemy models with tenant-scoped constraints for new schemas; no Alembic migrations yet |
-| Dashboard | Demo app (FastAPI, JSONL or Redis) with a static replay mode; not a hosted control plane |
+| Dashboard | [Live demo](https://lumen-ai-sdk-demo.vercel.app) on Vercel, plus local JSONL and Redis modes and a static replay; not a hosted control plane |
 
 Roadmap: richer exporter examples (ClickHouse, Postgres, Kafka), an OpenLIT compatibility matrix, a production dashboard example, then a stable 1.0 API with a migration guide.
 
