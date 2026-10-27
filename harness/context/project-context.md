@@ -1,6 +1,6 @@
 # Project Context
 
-Repository: `skarL007/-lumen-ai-sdk`
+Repository: `skarL007/lumen-ai-sdk`
 
 Repo root: current checkout.
 

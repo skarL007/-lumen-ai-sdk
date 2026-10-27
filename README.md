@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue?style=flat-square)](https://www.python.org/)
 [![PyPI](https://img.shields.io/pypi/v/lumen-ai-core?style=flat-square&label=lumen-ai-core)](https://pypi.org/project/lumen-ai-core/)
-[![CI](https://github.com/skarL007/-lumen-ai-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/skarL007/-lumen-ai-sdk/actions/workflows/ci.yml)
+[![CI](https://github.com/skarL007/lumen-ai-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/skarL007/lumen-ai-sdk/actions/workflows/ci.yml)
 
 ![LumenAI local observability dashboard](docs/assets/lumen-dashboard.png)
 
@@ -37,8 +37,8 @@ LumenAI reads that metadata and nothing else. It attaches a three-processor chai
 The demo drives a fixed workload for three tenants through the **real** processor chain, writes the events to JSONL, and rebuilds a cost report from that file alone. No Redis, Docker, or API key is needed, and the numbers are deterministic.
 
 ```bash
-git clone https://github.com/skarL007/-lumen-ai-sdk.git
-cd -lumen-ai-sdk
+git clone https://github.com/skarL007/lumen-ai-sdk.git
+cd lumen-ai-sdk
 python -m venv .venv
 # Windows: .venv\Scripts\activate    macOS / Linux: source .venv/bin/activate
 pip install -e packages/lumen-ai-core
@@ -238,10 +238,10 @@ The Redis asyncio client is bound to the loop that created it, so all I/O runs o
 `0.1.4` is the source in this repository. PyPI still serves `0.1.3` until the next release, so install from Git or a checkout:
 
 ```bash
-pip install "git+https://github.com/skarL007/-lumen-ai-sdk.git#subdirectory=packages/lumen-ai-core"
+pip install "git+https://github.com/skarL007/lumen-ai-sdk.git#subdirectory=packages/lumen-ai-core"
 # optional
-pip install "git+https://github.com/skarL007/-lumen-ai-sdk.git#subdirectory=packages/lumen-ai-celery"
-pip install "git+https://github.com/skarL007/-lumen-ai-sdk.git#subdirectory=packages/lumen-ai-openlit"
+pip install "git+https://github.com/skarL007/lumen-ai-sdk.git#subdirectory=packages/lumen-ai-celery"
+pip install "git+https://github.com/skarL007/lumen-ai-sdk.git#subdirectory=packages/lumen-ai-openlit"
 ```
 
 | Package | Purpose | Install when |
