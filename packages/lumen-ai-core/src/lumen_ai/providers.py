@@ -41,6 +41,10 @@ class BaseLumenAIExporter(abc.ABC):
         """Send the event to the target sink."""
         pass
 
+    def force_flush(self, timeout_millis: Optional[int] = None) -> bool:
+        """Write out any buffered events. Unbuffered exporters return True."""
+        return True
+
     def shutdown(self) -> None:
         """Gracefully close connections."""
         pass
@@ -126,10 +130,16 @@ class RedisExporter(BaseLumenAIExporter):
     background event loop and never blocks the caller.
     """
 
-    def __init__(self, redis_url: str, stream_prefix: str = "LumenAI:events"):
+    def __init__(
+        self,
+        redis_url: str,
+        stream_prefix: str = "LumenAI:events",
+        maxlen: int = 10000,
+    ):
         import redis as _redis
         self._redis = _redis.Redis.from_url(redis_url, decode_responses=True)
         self._stream_prefix = stream_prefix
+        self._maxlen = maxlen
 
     def export(self, tenant_id: str, event: LumenAIEvent) -> None:
         tenant_id = sanitize_tenant_id(tenant_id)
@@ -138,7 +148,7 @@ class RedisExporter(BaseLumenAIExporter):
             self._redis.xadd(
                 stream_key,
                 {"data": json.dumps(event, default=str)},
-                maxlen=10000,
+                maxlen=self._maxlen,
             )
         except Exception as e:
             logger.warning("Redis export failed: %s", e)
@@ -159,6 +169,9 @@ class JsonlExporter(BaseLumenAIExporter):
     def export(self, tenant_id: str, event: LumenAIEvent) -> None:
         line = json.dumps(event, default=str, separators=(",", ":"))
         with self._lock:
+            if self._file.closed:
+                logger.debug("JsonlExporter: export after shutdown ignored")
+                return
             self._file.write(line + "\n")
             self._file.flush()
 
@@ -173,8 +186,10 @@ class AsyncRedisExporter(BaseLumenAIExporter):
     Non-blocking Redis Streams exporter.
 
     ``export()`` (called synchronously from ``on_end`` on the request/worker
-    thread) only appends to an in-memory buffer and, when the buffer fills,
-    schedules a batch flush on a dedicated background event loop. It never
+    thread) only appends to an in-memory buffer. The buffer is written as one
+    pipelined batch on a dedicated background event loop when it reaches
+    ``max_buffer`` events or every ``flush_interval`` seconds, whichever comes
+    first, so low-traffic services still see events within about a second. It never
     blocks on network I/O and never touches the caller's event loop. The
     ``redis.asyncio`` client is created on and used only by that one loop —
     these clients are bound to the loop that first drives them, so sharing one
@@ -198,8 +213,12 @@ class AsyncRedisExporter(BaseLumenAIExporter):
         stream_prefix: str = "LumenAI:events",
         max_buffer: int = 100,
         maxlen: int = 10000,
+        flush_interval: Optional[float] = 1.0,
     ):
+        if flush_interval is not None and flush_interval <= 0:
+            raise ValueError("flush_interval must be > 0 seconds, or None to disable")
         self._redis_url = redis_url
+        self._flush_interval = flush_interval
         self._stream_prefix = stream_prefix
         self._max_buffer = max_buffer
         self._maxlen = maxlen
@@ -215,10 +234,25 @@ class AsyncRedisExporter(BaseLumenAIExporter):
             target=self._run_loop, name="lumenai-async-redis", daemon=True
         )
         self._thread.start()
+        # The periodic flusher is tracked apart from _futures: it never finishes
+        # on its own, so shutdown/force_flush must cancel it, not wait on it.
+        self._periodic: Optional[Any] = None
+        if flush_interval is not None:
+            self._periodic = asyncio.run_coroutine_threadsafe(
+                self._periodic_flush(flush_interval), self._loop
+            )
 
     def _run_loop(self) -> None:
         asyncio.set_event_loop(self._loop)
         self._loop.run_forever()
+
+    async def _periodic_flush(self, interval: float) -> None:
+        """Time-based flush so a partially filled buffer never waits forever."""
+        while True:
+            await asyncio.sleep(interval)
+            events = self._drain()
+            if events:
+                await self._write_batch(events)
 
     async def _get_client(self) -> Any:
         if self._redis is None:
@@ -264,6 +298,32 @@ class AsyncRedisExporter(BaseLumenAIExporter):
             self._buffer = []
             return events
 
+    def force_flush(self, timeout_millis: Optional[int] = None) -> bool:
+        """Write the buffer now and wait for in-flight batches (blocking).
+
+        ``TracerProvider.force_flush()`` reaches this through the normalizer.
+        Do not call it from the exporter's own background loop.
+        """
+        timeout = timeout_millis / 1000 if timeout_millis else 5.0
+        with self._lock:
+            if self._closed:
+                return True
+            events = self._buffer
+            self._buffer = []
+            if events:
+                self._schedule_locked(self._write_batch(events))
+            pending = list(self._futures)
+        deadline = time.monotonic() + timeout
+        for future in pending:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            try:
+                future.result(timeout=remaining)
+            except Exception:
+                return False
+        return True
+
     async def aflush(self) -> None:
         """Async flush — schedules the flush on the background loop and awaits it."""
         with self._lock:
@@ -299,6 +359,8 @@ class AsyncRedisExporter(BaseLumenAIExporter):
             events = self._buffer
             self._buffer = []
             futures = list(self._futures)
+        if self._periodic is not None:
+            self._periodic.cancel()
         if not self._loop.is_closed():
             try:
                 fut = asyncio.run_coroutine_threadsafe(
