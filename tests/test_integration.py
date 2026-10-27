@@ -7,9 +7,9 @@ Skipped automatically if Redis is unavailable.
 Run with:
     pytest tests/test_integration.py -v
 """
-import sys
-import os
 import json
+import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "lumen-ai-core", "src"))
 
@@ -125,9 +125,14 @@ def test_tenant_isolation_in_redis():
 def test_full_pipeline_span_to_redis():
     """A span with token attributes flows through all 3 processors to Redis."""
     from unittest.mock import MagicMock
-    from lumen_ai.processors.tenant import TenantSpanProcessor, set_tenant_id, _current_tenant
+
     from lumen_ai.processors.cost import CostComputingSpanProcessor
     from lumen_ai.processors.normalizer import EventNormalizerProcessor
+    from lumen_ai.processors.tenant import (
+        TenantSpanProcessor,
+        _current_tenant,
+        set_tenant_id,
+    )
     from lumen_ai.providers import DefaultPricingProvider, RedisExporter
     from lumen_ai.schema.semconv import PRICING_TABLE, GenAIAttributes
 
@@ -212,8 +217,8 @@ def test_init_rejects_empty_tenant():
 
 def test_init_rejects_redis_url_and_exporter():
     """LumenAI.init() raises when both redis_url and exporter are passed."""
-    from lumen_ai.sdk import LumenAI
     from lumen_ai.providers import RedisExporter
+    from lumen_ai.sdk import LumenAI
     LumenAI._initialized = False
 
     exporter = RedisExporter(REDIS_URL)

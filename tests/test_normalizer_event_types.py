@@ -15,11 +15,10 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(__file__), "..", "packages", "lumen-ai-core", "src")
 )
 
-from opentelemetry.trace import StatusCode
-
 from lumen_ai.processors.normalizer import _is_error, _span_to_event_type
 from lumen_ai.schema.event_types import EventType
 from lumen_ai.schema.semconv import GenAIAttributes, OpenInferenceAttributes
+from opentelemetry.trace import StatusCode
 
 
 def _span(span_kind=None, op_name=None, status_code=StatusCode.OK):

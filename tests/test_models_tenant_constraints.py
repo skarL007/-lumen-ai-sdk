@@ -5,9 +5,13 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(__file__), "..", "packages", "lumen-ai-core", "src")
 )
 
+from lumen_ai.models import (
+    LumenAIAgent,
+    LumenAIArtifact,
+    LumenAIEventRow,
+    LumenAISession,
+)
 from sqlalchemy import ForeignKeyConstraint
-
-from lumen_ai.models import LumenAIAgent, LumenAIArtifact, LumenAIEventRow, LumenAISession
 
 
 def _constraint_columns(table, name):

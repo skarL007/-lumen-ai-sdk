@@ -17,7 +17,6 @@ sys.path.insert(
 )
 
 import pytest
-
 from lumen_ai.processors.cost import CostComputingSpanProcessor, get_span_cost_data
 from lumen_ai.providers import DefaultPricingProvider
 from lumen_ai.schema.semconv import PRICING_TABLE, GenAIAttributes

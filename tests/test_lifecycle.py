@@ -17,11 +17,10 @@ sys.path.insert(
 )
 
 import pytest
+from lumen_ai import LumenAI
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.util._once import Once
-
-from lumen_ai import LumenAI
 
 
 @pytest.fixture(autouse=True)

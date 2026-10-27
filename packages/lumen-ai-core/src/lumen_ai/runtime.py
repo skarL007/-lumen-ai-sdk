@@ -20,11 +20,13 @@ class LumenRuntimeState:
         default_tenant: str,
         pricing_provider: Optional[BasePricingProvider],
         exporter: Optional[BaseLumenAIExporter],
+        genai_only: bool = False,
     ) -> None:
         self._lock = threading.RLock()
         self._default_tenant = default_tenant.strip()
         self._pricing_provider = pricing_provider
         self._exporter = exporter
+        self._genai_only = genai_only
         self._closed_exporter_ids: set[int] = set()
 
     def configure(
@@ -33,12 +35,14 @@ class LumenRuntimeState:
         default_tenant: str,
         pricing_provider: Optional[BasePricingProvider],
         exporter: Optional[BaseLumenAIExporter],
+        genai_only: bool = False,
     ) -> None:
         """Update state used by already-attached processors."""
         with self._lock:
             self._default_tenant = default_tenant.strip()
             self._pricing_provider = pricing_provider
             self._exporter = exporter
+            self._genai_only = genai_only
 
     @property
     def default_tenant(self) -> str:
@@ -54,6 +58,11 @@ class LumenRuntimeState:
     def exporter(self) -> Optional[BaseLumenAIExporter]:
         with self._lock:
             return self._exporter
+
+    @property
+    def genai_only(self) -> bool:
+        with self._lock:
+            return self._genai_only
 
     def shutdown_exporter(self) -> None:
         """Close the current exporter at most once and detach it from runtime."""

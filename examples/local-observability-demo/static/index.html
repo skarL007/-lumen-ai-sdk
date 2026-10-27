@@ -2,83 +2,110 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>LumenAI Local Observability</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>LumenAI · cost per tenant</title>
+    <meta name="description" content="LumenAI demo: GenAI traces turned into cost per tenant, exporting only metadata.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0e13'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%23f2c14e'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="static/styles.css">
   </head>
   <body>
-    <main class="shell">
-      <section class="toolbar" aria-label="Simulation controls">
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="top">
+      <div class="brand">
+        <span class="mark" aria-hidden="true"></span>
+        <b>LumenAI</b>
+        <span class="brand-sub">demo</span>
+      </div>
+      <div class="chips" aria-live="polite">
+        <span class="chip" id="mode-chip">Connecting…</span>
+        <span class="chip chip-ok" id="privacy-chip" hidden></span>
+      </div>
+      <a class="top-link" href="https://github.com/skarL007/lumen-ai-sdk" target="_blank" rel="noopener">GitHub ↗</a>
+    </header>
+
+    <p class="banner" id="replay-banner" hidden>
+      <b>Recorded run.</b> These events were exported by the real SDK running the README scenario.
+      To send your own spans, <a href="https://github.com/skarL007/lumen-ai-sdk/tree/main/examples/local-observability-demo" target="_blank" rel="noopener">run the demo locally ↗</a>.
+    </p>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="title">
         <div>
-          <p class="eyebrow">Local SDK demo</p>
-          <h1>LumenAI Local Observability</h1>
+          <p class="eyebrow">OpenTelemetry GenAI → cost per tenant</p>
+          <h1 id="title">Every LLM call, billed to the customer who caused it.</h1>
+          <p class="lede">Spans go through the real LumenAI processor chain: <span class="flow">tenant → cost → normalizer</span>. The exporter receives metadata only, never prompts or responses.</p>
         </div>
-        <div class="controls">
-          <label>
-            Tenant
-            <input id="tenant-input" value="acme" autocomplete="off">
-          </label>
-          <label>
-            Model
-            <select id="model-input">
-              <option value="gpt-4o-mini">gpt-4o-mini</option>
-              <option value="claude-haiku-4-5">claude-haiku-4-5</option>
-              <option value="google/gemini-2.5-flash">google/gemini-2.5-flash</option>
-            </select>
-          </label>
-          <label>
-            Input
-            <input id="input-tokens" type="number" min="0" value="1200">
-          </label>
-          <label>
-            Output
-            <input id="output-tokens" type="number" min="0" value="300">
-          </label>
-          <label class="check-control">
-            <input id="fail-input" type="checkbox">
-            Fail
-          </label>
-          <button id="simulate-button" type="button">Run span</button>
+        <div class="actions" id="live-actions">
+          <button class="btn btn-primary" id="run-scenario" type="button">Run the 3-tenant scenario</button>
+          <button class="btn" id="reset" type="button">Clear events</button>
+          <p class="hint">Same workload as the README demo. Expected total: <code>$0.190000</code>.</p>
         </div>
       </section>
 
-      <section class="metrics" aria-label="Tenant metrics">
-        <article>
-          <span>Total cost</span>
-          <strong id="metric-cost">$0.000000</strong>
+      <section class="kpis" aria-label="Totals">
+        <div class="kpi kpi-main"><span class="kpi-label">Total cost</span><strong id="kpi-cost">$0.000000</strong></div>
+        <div class="kpi"><span class="kpi-label">Tenants</span><strong id="kpi-tenants">0</strong></div>
+        <div class="kpi"><span class="kpi-label">Events · LLM calls</span><strong id="kpi-events">0 · 0</strong></div>
+        <div class="kpi kpi-wide"><span class="kpi-label">Tokens in · out · cached</span><strong id="kpi-tokens">0 · 0 · 0</strong></div>
+        <div class="kpi"><span class="kpi-label">Errors</span><strong id="kpi-errors">0</strong></div>
+      </section>
+
+      <section class="grid">
+        <article class="panel" aria-labelledby="tenants-title">
+          <div class="panel-head"><h2 id="tenants-title">Cost by tenant</h2><span class="panel-note">USD · share of total</span></div>
+          <ol class="tenants" id="tenant-list"></ol>
+          <p class="empty" id="tenants-empty">No events yet. Run the scenario or send a span.</p>
         </article>
-        <article>
-          <span>Events</span>
-          <strong id="metric-events">0</strong>
-        </article>
-        <article>
-          <span>Tokens</span>
-          <strong id="metric-tokens">0</strong>
-        </article>
-        <article>
-          <span>Errors</span>
-          <strong id="metric-errors">0</strong>
+        <article class="panel" aria-labelledby="checks-title">
+          <div class="panel-head"><h2 id="checks-title">What the events prove</h2></div>
+          <ul class="checks" id="checks"></ul>
         </article>
       </section>
 
-      <section class="workspace">
-        <div class="chart-panel">
-          <div class="panel-header">
-            <h2>Cost trend</h2>
-            <button id="refresh-button" type="button">Refresh</button>
-          </div>
-          <canvas id="cost-chart" width="900" height="260"></canvas>
+      <section class="panel" aria-labelledby="events-title">
+        <div class="panel-head">
+          <h2 id="events-title">Exported events</h2>
+          <div class="filters" id="tenant-filter" role="group" aria-label="Filter events by tenant"></div>
         </div>
-
-        <div class="events-panel">
-          <div class="panel-header">
-            <h2>Latest normalized events</h2>
-            <span id="status-line">Ready</span>
-          </div>
-          <div id="events-list" class="events-list" aria-live="polite"></div>
+        <div class="table-wrap">
+          <table class="events">
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">Tenant</th>
+                <th scope="col">Span</th>
+                <th scope="col">Kind</th>
+                <th scope="col">Model</th>
+                <th scope="col" class="num">Tokens in · out · cached</th>
+                <th scope="col" class="num">Cost (USD)</th>
+                <th scope="col"><span class="sr">Raw event</span></th>
+              </tr>
+            </thead>
+            <tbody id="events-body"></tbody>
+          </table>
         </div>
+        <p class="empty" id="events-empty">Nothing exported yet.</p>
       </section>
+
+      <details class="panel custom" id="custom-panel">
+        <summary>Send your own span</summary>
+        <form class="span-form" id="simulate-form">
+          <label>Tenant<input name="tenant_id" value="acme" maxlength="64" autocomplete="off" required></label>
+          <label>Model<select name="model" id="model-select"><option value="gpt-4o-mini">gpt-4o-mini</option></select></label>
+          <label>Input tokens<input name="input_tokens" type="number" min="0" step="1" value="1200" required></label>
+          <label>Output tokens<input name="output_tokens" type="number" min="0" step="1" value="300" required></label>
+          <label>Cache-read tokens<input name="cache_read_tokens" type="number" min="0" step="1" value="0" required></label>
+          <label class="check"><input name="fail" type="checkbox"> Mark as failed</label>
+          <button class="btn btn-primary" type="submit">Send span</button>
+        </form>
+      </details>
     </main>
-    <script src="/static/app.js"></script>
+
+    <footer class="foot">
+      <p id="store-line">Events are read back from the exporter, not from the browser.</p>
+      <p><a href="https://github.com/skarL007/lumen-ai-sdk" target="_blank" rel="noopener">lumen-ai-sdk</a> · MIT</p>
+    </footer>
+    <p class="sr" id="status" role="status" aria-live="polite"></p>
+    <script src="static/app.js"></script>
   </body>
 </html>

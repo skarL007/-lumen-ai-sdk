@@ -8,9 +8,12 @@
 [![PyPI](https://img.shields.io/pypi/v/lumen-ai-core?style=flat-square&label=lumen-ai-core)](https://pypi.org/project/lumen-ai-core/)
 [![CI](https://github.com/skarL007/lumen-ai-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/skarL007/lumen-ai-sdk/actions/workflows/ci.yml)
 
-![LumenAI local observability dashboard](docs/assets/lumen-dashboard.png)
+![LumenAI demo dashboard after the three-tenant scenario: $0.190000 in total, cost per tenant, and checks for tenant isolation, privacy, failed-call billing, and prompt caching](docs/assets/lumen-dashboard.png)
+
+<sub>The [demo dashboard](#see-it-in-a-dashboard) after one run of the scenario below. Every number on it is read back from what the exporter wrote.</sub>
 
 - [Reproducible demo](#reproducible-demo-60-seconds-no-keys)
+- [See it in a dashboard](#see-it-in-a-dashboard)
 - [How it works](#how-it-works)
 - [Quick start](#quick-start)
 - [Integrations](#integrations)
@@ -74,6 +77,24 @@ What each line proves:
 | `privacy` | No event carries prompt or response content. |
 
 Open `.runtime/cost-report.jsonl` to see the raw events. The script is [examples/multi-tenant-cost-report/main.py](examples/multi-tenant-cost-report/main.py).
+
+## See it in a dashboard
+
+The same workload, behind a small FastAPI app with a dashboard. Still no Docker, Redis, or API key:
+
+```bash
+pip install -e packages/lumen-ai-core fastapi uvicorn
+uvicorn main:app --app-dir examples/local-observability-demo
+```
+
+Open http://localhost:8000 and press **Run the 3-tenant scenario**. The app replays the workload above through LumenAI, reads the events back from the JSONL file, and shows:
+
+- **Cost by tenant**, with the same `$0.190000` total as the report above.
+- **What the events prove**: the cross-tenant span billed to `acme-health`, zero prompt or response fields, the failed retry still charged for its input tokens, and the cache-read tokens priced at the cache rate.
+- **Exported events**: one row per event, with the raw JSON a click away.
+- **Send your own span**: pick a tenant, any model in the price table, and token counts, then see the event LumenAI exports.
+
+Set `REDIS_URL` (or run `docker compose up --build` in that folder) to store events in Redis Streams instead. `record.py` saves a run to `static/recorded-events.json`; served without the backend, from any static host, the page replays that recording. The API and details are in [examples/local-observability-demo](examples/local-observability-demo).
 
 ## How it works
 
@@ -312,22 +333,25 @@ finally:
 
 Tenant ids are sanitized once, the same way for span attributes, Celery kwargs, and stream keys: control characters are removed and length is capped, which bounds Redis key cardinality.
 
+### Only GenAI spans
+
+Some frameworks emit their own OpenTelemetry spans; FastAPI 0.162, for example, emits request, endpoint, and serialization spans. By default LumenAI exports a span with no GenAI attributes as a generic agent step (`AGENT_COMPLETED`, `$0`). To keep the event stream to GenAI work only:
+
+```python
+LumenAI.init(service_name="my-ai-app", exporter=JsonlExporter("lumen-events.jsonl"), genai_only=True)
+```
+
+With `genai_only=True`, a span is exported only if it has a model, token counts, a GenAI operation, an OpenInference span kind, a tool name, or a LumenAI agent id. Skipped spans are counted in `events_skipped` from `lumen_ai.processors.normalizer.get_metrics()`.
+
 ## Integrations
 
 | Integration | How | Example |
 |---|---|---|
-| FastAPI | Set the tenant in middleware or a dependency, reset in `finally` | [examples/fastapi-quickstart](examples/fastapi-quickstart) |
+| FastAPI | Set the tenant in middleware or a dependency, reset in `finally`; add `genai_only=True` to drop FastAPI's own spans | [examples/fastapi-quickstart](examples/fastapi-quickstart), [examples/local-observability-demo](examples/local-observability-demo) |
 | Celery | `CeleryInstrumentor`; pass `tenant_id=` as a task kwarg | [examples/celery-background-tasks](examples/celery-background-tasks) |
 | OpenLIT / LangChain | `instrumentors=[OpenLITBridge()]` in `LumenAI.init()` | [examples/langchain-cost-tracking](examples/langchain-cost-tracking) |
 | OTLP backends | `enable_otlp=True, otlp_endpoint=...`; TLS is automatic for non-loopback hosts | — |
 | Existing OTel setup | `LumenAI.init()` adopts an already-installed `TracerProvider` instead of replacing it | — |
-
-A local dashboard demo with Redis runs with Docker:
-
-```bash
-cd examples/local-observability-demo
-docker compose up --build    # then open http://localhost:8000
-```
 
 ## Event contract
 
@@ -419,7 +443,7 @@ Alpha. The core contracts are covered by tests and usable for evaluation and ear
 | Release gate | `scripts/release_gate.py`: tests, ruff, mypy, wheel and sdist builds, `twine check`, clean installs, `pip check` |
 | PyPI | `0.1.3` published; `0.1.4` pending release |
 | Storage models | SQLAlchemy models with tenant-scoped constraints for new schemas; no Alembic migrations yet |
-| Dashboard | Local demo only, not a hosted control plane |
+| Dashboard | Demo app (FastAPI, JSONL or Redis) with a static replay mode; not a hosted control plane |
 
 Roadmap: richer exporter examples (ClickHouse, Postgres, Kafka), an OpenLIT compatibility matrix, a production dashboard example, then a stable 1.0 API with a migration guide.
 
@@ -431,7 +455,7 @@ pip install -e packages/lumen-ai-core -e packages/lumen-ai-celery -e packages/lu
 pip install pytest pytest-cov fastapi httpx ruff mypy build twine pip-audit celery
 
 python -m pytest tests -q
-python -m ruff check packages/lumen-ai-core/src packages/lumen-ai-celery/src packages/lumen-ai-openlit/src --select E,F,W,I --ignore E501
+python -m ruff check packages/lumen-ai-core/src packages/lumen-ai-celery/src packages/lumen-ai-openlit/src examples tests --select E,F,W,I --ignore E501
 python -m mypy packages/lumen-ai-core/src/lumen_ai --ignore-missing-imports
 python scripts/release_gate.py            # full gate, run before any PR
 ```

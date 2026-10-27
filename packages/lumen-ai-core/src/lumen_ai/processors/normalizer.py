@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # Health counters — make otherwise-silent event drops observable.
 # ---------------------------------------------------------------------------
 _metrics_lock = threading.Lock()
-_metrics = {"events_exported": 0, "export_errors": 0, "events_dropped": 0}
+_metrics = {"events_exported": 0, "export_errors": 0, "events_dropped": 0, "events_skipped": 0}
 
 
 def _incr(key: str) -> None:
@@ -40,7 +40,8 @@ def _incr(key: str) -> None:
 
 
 def get_metrics() -> dict:
-    """Snapshot of counters: events_exported / export_errors / events_dropped."""
+    """Snapshot of counters: events_exported / export_errors / events_dropped /
+    events_skipped (untyped spans ignored because ``genai_only`` is on)."""
     with _metrics_lock:
         return dict(_metrics)
 
@@ -94,6 +95,30 @@ def _span_to_event_type(span: ReadableSpan) -> str:
     return EventType.AGENT_FAILED if error else EventType.AGENT_COMPLETED
 
 
+def _has_genai_signal(attrs, cost_data: dict) -> bool:
+    """True if the span carries GenAI, OpenInference or LumenAI semantics.
+
+    Used by ``genai_only``: framework spans (an HTTP handler, a DB call) carry
+    none of these and would otherwise become $0 "agent step" events.
+    """
+    if cost_data:
+        return True
+    if first_str(
+        attrs,
+        OpenInferenceAttributes.SPAN_KIND,
+        GenAIAttributes.OPERATION_NAME,
+        GenAIAttributes.TOOL_NAME,
+        GenAIAttributes.REQUEST_MODEL,
+        GenAIAttributes.RESPONSE_MODEL,
+        OpenInferenceAttributes.MODEL_NAME,
+        LumenAIAttributes.AGENT_ID,
+    ):
+        return True
+    return bool(
+        first_int(attrs, GenAIAttributes.USAGE_INPUT_TOKENS, OpenInferenceAttributes.TOKEN_COUNT_PROMPT)
+    )
+
+
 def _span_duration_ms(span: ReadableSpan) -> int:
     if span.start_time and span.end_time:
         return int((span.end_time - span.start_time) / 1_000_000)
@@ -137,6 +162,12 @@ class EventNormalizerProcessor(SpanProcessor):
                 or sanitize_tenant_id(first_str(attrs, LumenAIAttributes.TENANT_ID))
                 or "default"
             )
+            # Side-maps are already popped above, so skipping leaks nothing.
+            if self._runtime is not None and self._runtime.genai_only and not _has_genai_signal(
+                attrs, cost_data
+            ):
+                _incr("events_skipped")
+                return
             error = _is_error(span)
             model = cost_data.get("model") or first_str(
                 attrs,

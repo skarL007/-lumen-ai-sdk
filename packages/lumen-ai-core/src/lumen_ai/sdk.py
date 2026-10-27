@@ -78,6 +78,7 @@ class LumenAI:
         pricing_provider: Optional[BasePricingProvider] = None,
         exporter: Optional[BaseLumenAIExporter] = None,
         instrumentors: Optional[List] = None,
+        genai_only: bool = False,
     ) -> None:
         """
         Initialize LumenAI observability.
@@ -97,6 +98,11 @@ class LumenAI:
                                redis_url is supplied.
             instrumentors:     List of BaseInstrumentor instances to activate
                                (e.g. CeleryInstrumentor).
+            genai_only:        Export only spans that carry GenAI, OpenInference
+                               or LumenAI attributes. Leave False (default) to
+                               also report untyped spans as generic agent steps;
+                               set True when a framework emits its own spans
+                               (FastAPI request spans, for example).
         """
         if cls._initialized:
             logger.warning("LumenAI.init() called more than once — ignoring")
@@ -134,6 +140,7 @@ class LumenAI:
             default_tenant=default_tenant,
             pricing_provider=pricing_provider,
             exporter=exporter,
+            genai_only=genai_only,
         )
 
         # Tracer provider. OTel's set_tracer_provider is set-once, so if a real
@@ -168,6 +175,7 @@ class LumenAI:
                     default_tenant=default_tenant,
                     pricing_provider=pricing_provider,
                     exporter=exporter,
+                    genai_only=genai_only,
                 )
                 runtime = attached_runtime
             cls._provider = current
