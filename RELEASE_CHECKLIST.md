@@ -6,7 +6,7 @@ Use this checklist before tagging or publishing `0.1.4`.
 
 - Local validation: green.
 - Audit dashboard: score `90`.
-- Remote GitHub Actions: blocked until account billing allows runners to start.
+- Remote GitHub Actions: must be green on the release PR.
 - PyPI: latest public package remains `0.1.3` until `v0.1.4` is published.
 
 ## Manual Gate
@@ -38,19 +38,17 @@ Then visually review:
 
 Do not publish while any of these are true:
 
-- GitHub Actions cannot start because account billing is locked.
+- PR checks are not green on Python `3.11` and `3.12`.
 - The full local harness does not pass.
 - PyPI `0.1.4` artifacts have not been checked through the hardened publish workflow.
 - The release tag does not match package versions exactly: `v0.1.4`.
 
 ## Publish Sequence
 
-After billing is available and PR checks can run:
-
-1. Rerun the PR checks:
+1. Check the PR checks:
 
    ```powershell
-   gh run rerun 28906569194 --failed
+   gh pr checks 12
    ```
 
 2. Confirm PR checks pass for Python `3.11` and `3.12`.

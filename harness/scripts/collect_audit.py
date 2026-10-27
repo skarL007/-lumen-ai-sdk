@@ -502,7 +502,6 @@ def render_dashboard(data: dict[str, Any]) -> str:
     }}
     function renderAssets() {{
       const items = [
-        'CODEX.md',
         'harness/context/project-context.md',
         'harness/agents/*.md',
         'harness/skills/lumen-ai-audit/SKILL.md',

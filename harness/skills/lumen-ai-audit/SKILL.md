@@ -4,10 +4,9 @@ Use this skill when auditing, fixing, or preparing release work for `skarL007/-l
 
 ## First Steps
 
-1. Read `CODEX.md`.
-2. Read `harness/context/project-context.md`.
-3. Run `git status --short --branch`.
-4. Prefer `.venv\Scripts\python.exe`; if missing, run `.\harness\scripts\run-audit.ps1` to create it.
+1. Read `harness/context/project-context.md`.
+2. Run `git status --short --branch`.
+3. Prefer `.venv\Scripts\python.exe`; if missing, run `.\harness\scripts\run-audit.ps1` to create it.
 
 ## Validation
 

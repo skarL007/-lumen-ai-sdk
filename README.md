@@ -24,7 +24,7 @@ Current readiness snapshot for the audited `0.1.4` source:
 | Release gate | Strong locally | Local release gate builds wheel and sdist artifacts, runs `twine check`, clean installs both artifact types, and runs `pip check`. |
 | Open source hygiene | Good | MIT license, security policy, contribution guide, issue templates, PR template, changelog, and release checklist are present. |
 | PyPI availability | Pending | PyPI still serves `0.1.3`; this source tree is `0.1.4`. Use git or local checkout until publishing is complete. |
-| Remote CI | Blocked externally | GitHub Actions currently fails before runners start because the account is locked due to billing. Local gates are the source of evidence until billing is restored. |
+| Remote CI | On every PR | GitHub Actions runs ruff, mypy, tests on Python 3.11 and 3.12, wheel/sdist clean installs and `pip-audit`. |
 | Database migrations | Not included | Tenant-scoped SQLAlchemy constraints protect new schemas only. Existing databases need an explicit migration plan. |
 
 ## What LumenAI Does
@@ -470,9 +470,8 @@ Last local validation for this audited source:
 | Runtime probes | Pass |
 | Playwright dashboard check | Pass, `0` console errors |
 | PyPI latest check | `0.1.3` currently published; source is `0.1.4` |
-| Remote GitHub Actions | Blocked before runner startup by account billing |
 
-Remote CI must be re-run after billing is restored before publishing or merging as a release branch.
+Remote CI must be green on the release PR before publishing.
 
 ## Release
 
@@ -480,7 +479,7 @@ Do not publish directly from a local machine. The intended path is GitHub Truste
 
 Before release:
 
-1. Restore GitHub Actions billing so CI can start runners.
+1. Confirm GitHub Actions is green on the release PR.
 2. Run `python scripts/release_gate.py` locally.
 3. Run `.\harness\scripts\run-audit.ps1 -Full`.
 4. Confirm PyPI still lacks the target version.
@@ -512,7 +511,6 @@ This release does not include Alembic migrations. Existing databases should be m
 
 - Alpha API: public names are stable enough for early adopters, but not yet v1.
 - PyPI can lag this source until `0.1.4` is published.
-- Remote CI is blocked by account billing in the current PR state.
 - Existing production databases need manual migration planning.
 - The included dashboard is a local/demo dashboard, not a hosted SaaS control plane.
 - Cost accuracy depends on current pricing data and correct model names in spans.
