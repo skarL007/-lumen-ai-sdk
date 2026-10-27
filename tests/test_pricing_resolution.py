@@ -14,7 +14,6 @@ sys.path.insert(
 )
 
 import pytest
-
 from lumen_ai.providers import DefaultPricingProvider
 from lumen_ai.schema.semconv import PRICING_TABLE, compute_cost
 

@@ -4,14 +4,13 @@ LumenAI SDK — smoke tests.
 Run with:
     cd packages/lumen-ai-core && pip install -e . && pytest ../../tests/test_smoke.py -v
 """
-import sys
 import os
+import sys
 
 # Ensure the installed package is importable when running from repo root
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "lumen-ai-core", "src"))
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Test 1: Import — nothing should raise
@@ -25,9 +24,9 @@ def test_import_top_level():
 
 def test_import_processors():
     """All three processors importable."""
-    from lumen_ai.processors.tenant import TenantSpanProcessor
     from lumen_ai.processors.cost import CostComputingSpanProcessor
     from lumen_ai.processors.normalizer import EventNormalizerProcessor
+    from lumen_ai.processors.tenant import TenantSpanProcessor
     assert TenantSpanProcessor is not None
     assert CostComputingSpanProcessor is not None
     assert EventNormalizerProcessor is not None
@@ -36,8 +35,8 @@ def test_import_processors():
 def test_import_providers():
     """Pricing and exporter ABCs importable."""
     from lumen_ai.providers import (
-        BasePricingProvider,
         BaseLumenAIExporter,
+        BasePricingProvider,
         DefaultPricingProvider,
     )
     assert BasePricingProvider is not None
@@ -71,7 +70,12 @@ def _make_dummy_span(trace_id: int = 1, span_id: int = 1, tenant_attr: str = "")
 
 def test_tenant_processor_uses_context_var():
     """TenantSpanProcessor reads tenant from ContextVar."""
-    from lumen_ai.processors.tenant import TenantSpanProcessor, set_tenant_id, get_span_tenant, _current_tenant
+    from lumen_ai.processors.tenant import (
+        TenantSpanProcessor,
+        _current_tenant,
+        get_span_tenant,
+        set_tenant_id,
+    )
 
     proc = TenantSpanProcessor(default_tenant="default")
     token = set_tenant_id("tenant-alpha")
@@ -85,7 +89,11 @@ def test_tenant_processor_uses_context_var():
 
 def test_tenant_processor_isolation_between_tenants():
     """Two different spans get different tenant tags when context changes."""
-    from lumen_ai.processors.tenant import TenantSpanProcessor, lumen_tenant, get_span_tenant
+    from lumen_ai.processors.tenant import (
+        TenantSpanProcessor,
+        get_span_tenant,
+        lumen_tenant,
+    )
 
     proc = TenantSpanProcessor(default_tenant="default")
 
@@ -105,7 +113,11 @@ def test_tenant_processor_isolation_between_tenants():
 
 def test_tenant_processor_falls_back_to_default():
     """Without ContextVar set, uses default_tenant."""
-    from lumen_ai.processors.tenant import TenantSpanProcessor, get_span_tenant, _current_tenant
+    from lumen_ai.processors.tenant import (
+        TenantSpanProcessor,
+        _current_tenant,
+        get_span_tenant,
+    )
 
     # Ensure no tenant is set
     _current_tenant.set("")
@@ -125,6 +137,7 @@ def _make_llm_span(model: str, input_tokens: int, output_tokens: int,
                    cache_read: int = 0, trace_id: int = 0xFF, span_id: int = 0xEE):
     """Return a span with gen_ai.usage.* attributes set."""
     from unittest.mock import MagicMock
+
     from lumen_ai.schema.semconv import GenAIAttributes
 
     span = MagicMock()

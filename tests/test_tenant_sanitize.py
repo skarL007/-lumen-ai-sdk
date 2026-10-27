@@ -12,8 +12,8 @@ sys.path.insert(
 
 from lumen_ai.processors.tenant import (
     TenantSpanProcessor,
-    get_tenant_id,
     get_span_tenant,
+    get_tenant_id,
     reset_tenant_id,
     set_tenant_id,
 )

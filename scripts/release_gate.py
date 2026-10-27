@@ -90,6 +90,8 @@ def main() -> int:
             "packages/lumen-ai-core/src",
             "packages/lumen-ai-celery/src",
             "packages/lumen-ai-openlit/src",
+            "examples",
+            "tests",
             "--select",
             "E,F,W,I",
             "--ignore",

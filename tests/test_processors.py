@@ -7,24 +7,23 @@ Covers: TenantSpanProcessor context API, CostComputingSpanProcessor USD math,
 Run with:
     pip install -e packages/lumen-ai-core && pytest tests/ -v
 """
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages", "lumen-ai-core", "src"))
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+from lumen_ai.processors.cost import CostComputingSpanProcessor, get_span_cost_data
 from lumen_ai.processors.tenant import (
-    set_tenant_id,
+    _current_tenant,
     get_tenant_id,
     lumen_tenant,
-    _current_tenant,
+    set_tenant_id,
 )
-from lumen_ai.processors.cost import CostComputingSpanProcessor, get_span_cost_data
 from lumen_ai.providers import DefaultPricingProvider
 from lumen_ai.schema.semconv import PRICING_TABLE, GenAIAttributes
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -119,8 +118,8 @@ def test_cost_cache_read_with_minimal_input():
 
     cost_data = get_span_cost_data(span)
     expected_cache = 1_000_000 * 0.30 / 1_000_000  # $0.30
-    # total = tiny input cost + $0.30 cache
-    assert cost_data["cost_usd"] >= 0.29
+    expected_input = 1 * 3.0 / 1_000_000  # one input token at $3/M
+    assert cost_data["cost_usd"] == pytest.approx(expected_input + expected_cache)
     assert cost_data["cache_read_tokens"] == 1_000_000
 
 
