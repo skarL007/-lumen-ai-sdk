@@ -2,10 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /repo
 
+# Same layout as the repository: the dashboard imports the README scenario
+# from examples/multi-tenant-cost-report.
 COPY packages/lumen-ai-core ./packages/lumen-ai-core
-COPY examples/local-observability-demo/main.py ./main.py
-COPY examples/local-observability-demo/static ./static
+COPY examples/multi-tenant-cost-report ./examples/multi-tenant-cost-report
+COPY examples/local-observability-demo ./examples/local-observability-demo
 
 RUN pip install --no-cache-dir fastapi uvicorn redis -e ./packages/lumen-ai-core
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--app-dir", "examples/local-observability-demo", "--host", "0.0.0.0", "--port", "8000"]

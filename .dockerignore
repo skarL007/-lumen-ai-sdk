@@ -19,10 +19,8 @@ htmlcov
 .coverage
 coverage.xml
 
-.runtime
-*.jsonl
+**/.runtime
+**/*.jsonl
 *.log
 
 docs/assets
-lumen-ai-demo
-lumen-simulation.html
