@@ -8,7 +8,6 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue?style=flat-square)](https://www.python.org/)
 [![PyPI](https://img.shields.io/pypi/v/lumen-ai-sdk?style=flat-square&label=lumen-ai-sdk)](https://pypi.org/project/lumen-ai-sdk/)
-[![CI](https://github.com/skarL007/lumen-ai-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/skarL007/lumen-ai-sdk/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-lumen--ai--sdk--demo.vercel.app-black?style=flat-square&logo=vercel)](https://lumen-ai-sdk-demo.vercel.app)
 
 [![LumenAI demo dashboard after the three-tenant scenario: $0.190000 in total, cost per tenant, and checks for tenant isolation, privacy, failed-call billing, and prompt caching](docs/assets/lumen-dashboard.png)](https://lumen-ai-sdk-demo.vercel.app)
@@ -221,10 +220,11 @@ The stamped tenant wins on purpose. If the live context were read first, a span 
 flowchart TD
     a(["CostComputingSpanProcessor.on_end"]) --> m{"Model id?<br/>gen_ai.request.model<br/>→ gen_ai.response.model<br/>→ llm.model_name"}
     m -- "none" --> skip1["No cost entry<br/>(event still exported)"]
-    m -- "found" --> price{"Pricing match?<br/>exact key, else longest<br/>separator-anchored prefix"}
-    price -- "unknown model" --> skip2["cost_usd = 0.0<br/>model and tokens kept"]
-    price -- "rates" --> tok["Tokens<br/>gen_ai.usage.* → llm.token_count.*"]
-    tok --> inc{"Provider folds cache<br/>into input tokens?<br/>(openai, azure)"}
+    m -- "found" --> tok["Tokens<br/>gen_ai.usage.* → llm.token_count.*"]
+    tok -- "all zero" --> skip0["No cost entry<br/>(nothing to price)"]
+    tok -- "used" --> price{"Pricing match?<br/>exact key, else longest<br/>separator-anchored prefix"}
+    price -- "unknown model" --> skip2["No cost entry: the event gets<br/>cost_usd = 0.0, unpriced = true<br/>and one WARNING per model"]
+    price -- "rates" --> inc{"Provider folds cache<br/>into input tokens?<br/>(openai, azure)"}
     inc -- "yes" --> sub["billable_input = input − cache_read"]
     inc -- "no" --> keep["billable_input = input"]
     sub & keep --> formula["cost = (billable_input × in<br/>+ output × out<br/>+ cache_read × cache) / 1M"]
@@ -377,14 +377,15 @@ Every exporter receives `export(tenant_id, event)` where `event` is a `LumenAIEv
 | `message` | `str` | Span name |
 | `duration_ms` | `int` | End − start |
 | `is_error` | `bool` | Span status is `ERROR` |
-| `cost_usd` | `float` | `0.0` when the model has no price |
+| `cost_usd` | `float` | USD from the price table; `0.0` when the model has no price |
+| `unpriced` | `bool` | `true` when the span used tokens but got no price, so its `0.0` is unknown, not free |
 | `tokens_in`, `tokens_out`, `cache_read_tokens` | `int` | GenAI usage, else OpenInference counts |
 | `model`, `tool_name`, `span_kind` | `str` | Span attributes |
 
 The schema has no field that can carry prompt, completion, request-body, or tool-argument content.
 
 ```json
-{"tenant_id":"globex-legal","event_type":"LLM_CALL_COMPLETED","severity":"INFO","message":"contract.review","model":"claude-sonnet-4-6","tokens_in":40000,"tokens_out":2000,"cache_read_tokens":30000,"cost_usd":0.159,"is_error":false,"span_kind":"LLM","...":"..."}
+{"tenant_id":"globex-legal","event_type":"LLM_CALL_COMPLETED","severity":"INFO","message":"contract.review","model":"claude-sonnet-4-6","tokens_in":40000,"tokens_out":2000,"cache_read_tokens":30000,"cost_usd":0.159,"unpriced":false,"is_error":false,"span_kind":"LLM","...":"..."}
 ```
 
 ## Extending LumenAI
@@ -428,6 +429,8 @@ LumenAI.init(pricing_provider=ContractPricing())
 
 `CommunityPricingProvider(url)` loads a remote JSON price table: HTTPS only by default, 1 MiB cap, JSON-object validation, and a one-hour back-off after success or failure.
 
+The built-in table lists standard prices checked on 2026-10-28 (`lumen_ai.schema.semconv.PRICING_TABLE`). A model it does not know is never priced at a guess: its events carry `cost_usd: 0.0` and `unpriced: true`, the first such span per model logs a WARNING, and `get_metrics()["events_unpriced"]` counts them. A model priced at `$0`, such as a local Ollama model, stays `unpriced: false`.
+
 ## Design decisions
 
 | Decision | Why | Trade-off |
@@ -436,7 +439,7 @@ LumenAI.init(pricing_provider=ContractPricing())
 | Span processors, not a wrapper SDK | Works with any instrumentation that emits OTel spans | Relies on emitters setting standard attributes |
 | Side maps between processors | Spans are immutable in `on_end`; maps are bounded LRU and popped on read | ~50k in-flight entries max per map |
 | Stamped tenant wins at `on_end` | Prevents cross-tenant billing when a span ends in another request's context | Tenant must be set before the span starts |
-| Unknown model → `$0`, metadata kept | Never invent a price; never drop the event | Under-reports cost until the price table is updated |
+| Unknown model → `$0` flagged `unpriced`, metadata kept | Never invent a price, never drop the event, and never let a missing price pass for free | Under-reports cost until a price is added; the flag, `events_unpriced` and a WARNING show where |
 | Exporter errors are swallowed and counted | Telemetry must never take the application down | Failures surface through `lumen_ai.processors.normalizer.get_metrics()` and logs, not exceptions |
 | Async exporter on its own event loop | Redis asyncio clients are loop-bound; the caller's loop is never blocked | One background thread per exporter |
 

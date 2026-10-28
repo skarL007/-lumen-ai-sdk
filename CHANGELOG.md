@@ -9,7 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+- **events**: `unpriced: bool` on every event. It is `true` when a span used tokens but got no price (a model missing from the table, a span with no model id, or a pricing provider that raised), so its `cost_usd` of `0.0` reads as unknown instead of free. A model priced at `$0`, such as a local Ollama model, stays `false`.
+- **metrics**: `events_unpriced` in `lumen_ai.processors.normalizer.get_metrics()` counts those events.
+- **cost**: the first unpriced span per model logs a WARNING naming the model (at most 256 models are tracked). It used to be a DEBUG line, so a new model looked free.
+- **pricing**: current models at the list prices published on 2026-10-28, each provider's source page noted in the table:
+  - Anthropic: Claude Fable 5.1 and 5, Opus 5.5, 5, 4.8, 4.7 and 4.5, Sonnet 5.5, 5 and 4.5, Haiku 5.5.
+  - OpenAI: GPT-6 (astra, sol, luna), GPT-6.1 (sol, terra), GPT-5.6 (sol, terra, luna), GPT-5.5, 5.4, 5.2, 5.1 and 5 with their pro, mini and nano variants, and `gpt-5.3-codex`.
+  - Google: Gemini 4 Argon, 3.8 and 3.6 Flash, 3.5 and 3.1 Flash-Lite, 3.1 Pro Preview, 3 Flash Preview, plus bare `gemini-2.5-*` keys, so ids from Google's SDK resolve without the `google/` prefix.
+  - DeepSeek: `deepseek-flash`, `deepseek-v4-flash` and `deepseek-v4-pro`, at peak rates.
+  - Mistral: Large 3 (`mistral-large-latest`), Large 4 (preview), Medium 3.5, Small 4.
+  - Bare `text-embedding-3-small`.
+- **pricing**: comments in the table say where a flat rate cannot follow the provider: Claude Haiku 5.5 over 100K prompt tokens, OpenAI over 272K, Gemini Pro over 200K, Gemini prices scheduled to change, and DeepSeek off-peak hours.
+
+### Fixed
+- **pricing**: five list prices were wrong:
+  - `claude-haiku-4-5` was priced as Claude 3 Haiku ($0.25 / $1.25). It is $1 / $5, with cache reads at $0.10.
+  - `claude-opus-4-6` was priced at $15 / $75. It is $5 / $25, with cache reads at $0.50.
+  - `gemini-2.5-flash` is $0.30 / $2.50, not $0.15 / $0.60.
+  - `mistral-large` is now Large 3 at $0.50 / $1.50, not $2 / $6.
+  - `mistral-small` is now Small 4 at $0.15 / $0.60, not $0.10 / $0.30.
+  - Their `anthropic/`, `google/` and `mistral/` aliases change with them.
+- **cost**: token counts are read before the price lookup, so spans with no usage skip the lookup.
+
+### Removed
+- **pricing**: `deepseek/deepseek-v3.2` and `deepseek/deepseek-r1`. DeepSeek no longer lists them: `deepseek-chat` and `deepseek-reasoner` were discontinued on 2026-07-24. Spans that still name them export `unpriced: true` instead of an unverified price.
+
+### Changed
+- **docs**: the README no longer shows the CI badge. It reported "failing" while GitHub Actions is unavailable for this repository, not because of the code; `scripts/release_gate.py` still runs the same checks locally.
 
 ---
 

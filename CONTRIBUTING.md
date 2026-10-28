@@ -82,7 +82,7 @@ TenantSpanProcessor.on_end()
        ▼
 CostComputingSpanProcessor.on_end()
   → reads gen_ai.usage.input_tokens, output_tokens, cache_read.input_tokens
-  → looks up model in BasePricingProvider
+  → looks up model in BasePricingProvider (no price: WARNING once per model, no entry)
   → computes cost_usd = (in * input_rate + out * output_rate + cache * cache_rate) / 1_000_000
   → writes to side-dict: {trace_id:span_id → {cost_usd, tokens, model}}
        │
@@ -90,6 +90,7 @@ CostComputingSpanProcessor.on_end()
 EventNormalizerProcessor.on_end()
   → reads tenant from TenantProcessor's side-dict
   → reads cost from CostProcessor's side-dict
+  → sets unpriced=True when the span used tokens but has no cost entry
   → assembles canonical LumenAIEvent dict
   → calls exporter.export(tenant_id, event)
 ```
@@ -100,7 +101,7 @@ The processors are registered in order: `Tenant → Cost → Normalizer`. This o
 
 - **Tenant must run first** because `on_start()` stamps the span attribute before the LLM call begins. Child spans inherit the tenant attribute from their parent span this way. If Tenant ran after Cost, child spans could lose their tenant attribution.
 
-- **Cost must run before Normalizer** because `EventNormalizerProcessor` reads from `CostComputingSpanProcessor`'s side-dict. If Cost has not yet processed the span, `get_span_cost_data()` returns `{}` and the event shows `cost_usd: 0.0`.
+- **Cost must run before Normalizer** because `EventNormalizerProcessor` reads from `CostComputingSpanProcessor`'s side-dict. If Cost has not yet processed the span, `get_span_cost_data()` returns `{}` and the event shows `cost_usd: 0.0` with `unpriced: true`.
 
 - **Normalizer runs last** because it is the only processor that writes to an external system (the exporter). Running it last ensures the event is fully enriched before it leaves the process.
 
@@ -138,12 +139,15 @@ PRICING_TABLE: dict[str, dict[str, float]] = {
 }
 ```
 
-**Where to find current prices:**
-- Anthropic: https://www.anthropic.com/pricing
-- OpenAI: https://openai.com/api/pricing/
-- Google: https://ai.google.dev/pricing
-- DeepSeek: https://platform.deepseek.com/docs/pricing
+**Where to find current prices** (the pages the table was checked against on 2026-10-28):
+- Anthropic: https://platform.claude.com/docs/en/about-claude/pricing
+- OpenAI: https://developers.openai.com/api/docs/pricing (Standard tier)
+- Google: https://ai.google.dev/gemini-api/docs/pricing (paid tier)
+- DeepSeek: https://api-docs.deepseek.com/quick_start/pricing/ (peak rates)
+- Mistral: https://docs.mistral.ai/inference/pricing
 - Local models (Ollama): always `{"input": 0.0, "output": 0.0, "cache_read": 0.0}`
+
+Use the bare model id the provider's API returns as the key (`gpt-5.4-mini`, not `openai/gpt-5.4-mini`): ids with a `provider/` prefix and dated suffixes resolve to it. If the model has no cached-input discount, repeat its input rate as `cache_read`.
 
 **PR title format:** `feat(pricing): add <provider>/<model-name>`
 
@@ -301,7 +305,7 @@ class MyPricingProvider(BasePricingProvider):
 ```
 
 **Key rules for pricing providers:**
-- `get_pricing()` must **never raise** — exceptions in the pricing provider cause the span to skip cost computation silently (not crash).
+- `get_pricing()` must **never raise** — an exception skips cost computation for that span (it does not crash) and marks its event `unpriced`.
 - Return `None` for unknown models, not a dict with zero values. Zero values are reserved for genuinely free models (local Ollama).
 - Cache aggressively — `get_pricing()` is called on every span end. A database round-trip per span is not acceptable.
 - The return dict must have exactly these keys: `"input"`, `"output"`, `"cache_read"` — all floats, USD per 1 million tokens.

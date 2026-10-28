@@ -30,6 +30,26 @@ _map_lock = threading.Lock()
 _MAX_ENTRIES = 50_000
 _EVICT_BATCH = _MAX_ENTRIES // 10
 
+# Models already warned about as unpriced. Bounded so span-supplied model ids
+# cannot grow it without limit; past the cap the events_unpriced counter and the
+# event's ``unpriced`` flag still report every case.
+_warned_models: set[str] = set()
+_warned_lock = threading.Lock()
+_MAX_WARNED_MODELS = 256
+
+
+def _warn_unpriced(model: str) -> None:
+    """Log one WARNING per model id that reports tokens but has no price."""
+    with _warned_lock:
+        if model in _warned_models or len(_warned_models) >= _MAX_WARNED_MODELS:
+            return
+        _warned_models.add(model)
+    logger.warning(
+        "No price for model %r: its events are exported with cost_usd=0.0 and "
+        "unpriced=True. Pass a pricing_provider that knows this model.",
+        model[:128],
+    )
+
 
 def _store_cost(key: str, data: dict) -> None:
     with _map_lock:
@@ -102,23 +122,6 @@ class CostComputingSpanProcessor(SpanProcessor):
             if not model:
                 return
 
-            try:
-                pricing_provider = (
-                    self._runtime.pricing_provider
-                    if self._runtime is not None
-                    else self._pricing
-                )
-                if pricing_provider is None:
-                    return
-                pricing = pricing_provider.get_pricing(model)
-            except Exception:
-                logger.debug("PricingProvider raised for model '%s'", model, exc_info=True)
-                return
-
-            if not pricing:
-                logger.debug("No pricing found for model '%s' — cost skipped", model)
-                return
-
             # OpenInference-only emitters (e.g. Arize Phoenix instrumentation)
             # report usage as llm.token_count.*; without this fallback their
             # spans would be priced at $0 even when the model is known.
@@ -136,6 +139,26 @@ class CostComputingSpanProcessor(SpanProcessor):
 
             # Cache-only spans (input==output==0, cache_read>0) still have real cost.
             if input_tokens == 0 and output_tokens == 0 and cache_read == 0:
+                return
+
+            try:
+                pricing_provider = (
+                    self._runtime.pricing_provider
+                    if self._runtime is not None
+                    else self._pricing
+                )
+                if pricing_provider is None:
+                    return
+                pricing = pricing_provider.get_pricing(model)
+            except Exception:
+                logger.debug("PricingProvider raised for model '%s'", model, exc_info=True)
+                _warn_unpriced(model)
+                return
+
+            # The span used tokens but the model has no price: the normalizer
+            # marks its event unpriced, so a $0 here is never mistaken for free.
+            if not pricing:
+                _warn_unpriced(model)
                 return
 
             # Some emitters (OpenAI/Azure) fold cached tokens into input_tokens; bill
@@ -170,6 +193,8 @@ class CostComputingSpanProcessor(SpanProcessor):
     def shutdown(self) -> None:
         with _map_lock:
             _span_cost_map.clear()
+        with _warned_lock:
+            _warned_models.clear()
 
     def force_flush(self, timeout_millis: Optional[int] = None) -> bool:
         return True
