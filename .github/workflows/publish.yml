@@ -46,7 +46,9 @@ jobs:
     needs: release-gate
     if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    environment: pypi
+    # One environment per package: PyPI allows a single pending trusted
+    # publisher per repository + workflow + environment.
+    environment: ${{ matrix.environment }}
     permissions:
       contents: read
       id-token: write
@@ -54,10 +56,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package:
-          - lumen-ai-core
-          - lumen-ai-celery
-          - lumen-ai-openlit
+        include:
+          - package: lumen-ai-core
+            environment: pypi
+          - package: lumen-ai-celery
+            environment: pypi-celery
+          - package: lumen-ai-openlit
+            environment: pypi-openlit
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
