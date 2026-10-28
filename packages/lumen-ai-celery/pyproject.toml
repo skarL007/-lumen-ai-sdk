@@ -1,6 +1,6 @@
 [project]
 name = "lumen-ai-sdk-celery"
-version = "0.1.5"
+version = "0.1.6"
 description = "LumenAI Celery Instrumentor - background task observability for AI workloads"
 requires-python = ">=3.11"
 readme = "README.md"

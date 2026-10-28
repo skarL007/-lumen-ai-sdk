@@ -1,6 +1,6 @@
 [project]
 name = "lumen-ai-sdk-openlit"
-version = "0.1.5"
+version = "0.1.6"
 description = "LumenAI OpenLIT Bridge - zero-code LLM auto-instrumentation"
 requires-python = ">=3.11"
 readme = "README.md"

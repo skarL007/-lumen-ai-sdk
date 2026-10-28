@@ -1,6 +1,6 @@
 [project]
 name = "lumen-ai-sdk"
-version = "0.1.5"
+version = "0.1.6"
 description = "LumenAI SDK - per-tenant GenAI cost from OpenTelemetry spans, metadata only"
 requires-python = ">=3.11"
 readme = "README.md"
