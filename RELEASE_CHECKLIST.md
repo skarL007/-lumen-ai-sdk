@@ -1,23 +1,25 @@
-# LumenAI 0.1.4 Release Checklist
+# LumenAI Release Checklist
 
-Use this checklist before tagging or publishing `0.1.4`.
+Use this checklist before tagging or publishing a release. The current one is `0.1.5`.
 
 ## Current Status
 
-- Local validation: green.
-- Audit dashboard: score `90`.
-- Remote GitHub Actions: must be green on the release PR.
-- PyPI: latest public package remains `0.1.3` until `v0.1.4` is published.
+- PyPI: `lumen-ai-sdk`, `lumen-ai-sdk-celery` and `lumen-ai-sdk-openlit` at `0.1.4`, until `v0.1.5` is published.
+- Remote GitHub Actions: unavailable for this repository, so `0.1.4` and `0.1.5` are uploaded with `twine` from a local build (see "Local upload" below).
 
 ## Manual Gate
 
 Run the full local gate from a clean checkout:
 
 ```powershell
+python scripts/release_gate.py
+python scripts/check_prices.py
 .\harness\scripts\run-audit.ps1 -Full
 ```
 
-The generated dashboard should show:
+`release_gate.py` must exit 0: tests, ruff, mypy, wheel and sdist builds, `twine check`, clean installs from both, and `pip check`. `check_prices.py` must report no price difference from LiteLLM's list other than the acknowledged ones.
+
+The audit dashboard should show:
 
 - `overall_score`: `90` or higher.
 - `pytest`: pass.
@@ -38,42 +40,44 @@ Then visually review:
 
 Do not publish while any of these are true:
 
-- PR checks are not green on Python `3.11` and `3.12`.
-- The full local harness does not pass.
-- PyPI `0.1.4` artifacts have not been checked through the hardened publish workflow.
-- The release tag does not match package versions exactly: `v0.1.4`.
+- `scripts/release_gate.py` does not pass on the commit being tagged.
+- The release tag does not match package versions exactly, for example `v0.1.5` for version `0.1.5` in all four `pyproject.toml` files and the three `__version__` strings.
+- `CHANGELOG.md` has no dated section for the version.
 
 ## Publish Sequence
 
-1. Check the PR checks:
+1. Merge the release PR into `main`.
+2. Create and push the tag:
 
    ```powershell
-   gh pr checks 12
+   git tag v0.1.5
+   git push origin v0.1.5
    ```
 
-2. Confirm PR checks pass for Python `3.11` and `3.12`.
-3. Mark the PR ready for review:
-
-   ```powershell
-   gh pr ready 12
-   ```
-
-4. Merge into `main`.
-5. Create and push the tag:
-
-   ```powershell
-   git tag v0.1.4
-   git push origin v0.1.4
-   ```
-
-6. Publish through the hardened Trusted Publishing workflow.
-7. Confirm PyPI shows `0.1.4` for:
+3. Publish through the Trusted Publishing workflow (`.github/workflows/publish.yml`, one environment per package: `pypi`, `pypi-celery`, `pypi-openlit`), or through "Local upload" while Actions is unavailable.
+4. Confirm PyPI shows the version for:
 
 - `lumen-ai-sdk`
 - `lumen-ai-sdk-celery`
 - `lumen-ai-sdk-openlit`
 
-8. Rerun dependency audit against PyPI-installed `0.1.4` artifacts.
+5. Install the three packages from PyPI in a clean virtual environment and run `pip check`.
+6. Create the GitHub release for the tag with the six distribution files attached.
+7. Rerun the dependency audit against the PyPI-installed artifacts.
+
+## Local upload
+
+Only while GitHub Actions is unavailable:
+
+```powershell
+python -m build packages/lumen-ai-core --outdir dist-0.1.5
+python -m build packages/lumen-ai-celery --outdir dist-0.1.5
+python -m build packages/lumen-ai-openlit --outdir dist-0.1.5
+python -m twine check dist-0.1.5/*
+python -m twine upload -u __token__ dist-0.1.5/*
+```
+
+The maintainer pastes a PyPI API token at the prompt. Delete the token at <https://pypi.org/manage/account/> once the upload is confirmed.
 
 ## Known Follow-ups
 
