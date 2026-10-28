@@ -377,6 +377,22 @@ With `genai_only=True`, a span is exported only if it has a model, token counts,
 
 The tests skip a library that is not installed. OpenInference for Anthropic needs `anthropic>=1.8`, and OpenLIT 1.45 needs `anthropic<1`, so the two cannot share one environment.
 
+### Checked against a real bill
+
+On 2026-10-28, LumenAI 0.1.5 from PyPI ran inside [Axon Voice](https://github.com/skarL007/Axon-Voice), a voice assistant that calls its models over plain HTTP. It made 6 real OpenRouter calls to `openai/gpt-4o-mini`, each with the same 2.2k-token system prompt. LumenAI's cost matched the `usage.cost` that OpenRouter reported on every call. From the third call on, 2,176 input tokens were cache reads, and LumenAI applied the same discount.
+
+| Call | Input tokens | Cache reads | LumenAI (US$) | OpenRouter (US$) |
+|---|---|---|---|---|
+| 1 | 2,270 | 0 | 0.00035310 | 0.00035310 |
+| 2 | 2,266 | 0 | 0.00035370 | 0.00035370 |
+| 3 | 2,264 | 2,176 | 0.00018120 | 0.00018120 |
+| 4 | 2,267 | 2,176 | 0.00018345 | 0.00018345 |
+| 5 | 2,265 | 2,176 | 0.00018135 | 0.00018135 |
+| 6 | 2,265 | 2,176 | 0.00017835 | 0.00017835 |
+| **Total** | | | **0.00143115** | **0.00143115** |
+
+This is one model on one provider. Other models have the mocked tests above, not a real bill.
+
 ## Event contract
 
 Every exporter receives `export(tenant_id, event)` where `event` is a `LumenAIEvent`:
@@ -498,6 +514,7 @@ Alpha. The core contracts are covered by tests and usable for evaluation and ear
 | Area | State |
 |---|---|
 | Core processors, exporters, tenant isolation | Covered by unit, integration, and regression tests |
+| Cost accuracy | Equal to OpenRouter's bill on 6 real `gpt-4o-mini` calls with cache reads ([details](#checked-against-a-real-bill)) |
 | Release gate | `scripts/release_gate.py`: tests, ruff, mypy, wheel and sdist builds, `twine check`, clean installs, `pip check` |
 | PyPI | `lumen-ai-sdk`, `lumen-ai-sdk-celery` and `lumen-ai-sdk-openlit` from `0.1.4`; `0.1.3` and older as `lumen-ai-core`, `lumen-ai-celery` and `lumen-ai-openlit` |
 | Storage models | SQLAlchemy models with tenant-scoped constraints for new schemas; no Alembic migrations yet |
