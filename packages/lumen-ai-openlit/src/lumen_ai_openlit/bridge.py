@@ -22,6 +22,12 @@ class OpenLITBridge(BaseInstrumentor):
     OpenLIT generates standard OTel spans with gen_ai.* attributes.
     This bridge simply initializes OpenLIT with the LumenAI TracerProvider,
     so all LLM spans flow through LumenAI processors (Tenant → Cost → Normalizer).
+
+    LumenAI exports metadata only, so the bridge starts OpenLIT the same way:
+    no prompt or completion text on spans, and no OpenLIT events or metrics.
+    Without an OTLP endpoint, OpenLIT prints those to stdout, prompts
+    included. Set ``capture_message_content=True`` (or turn events and metrics
+    back on) only if your own exporters should receive them.
     """
 
     def __init__(
@@ -29,10 +35,16 @@ class OpenLITBridge(BaseInstrumentor):
         collect_gpu_stats: bool = False,
         disable_batch: bool = False,
         pricing_json: str | None = None,
+        capture_message_content: bool = False,
+        disable_events: bool = True,
+        disable_metrics: bool = True,
     ):
         self._collect_gpu_stats = collect_gpu_stats
         self._disable_batch = disable_batch
         self._pricing_json = pricing_json
+        self._capture_message_content = capture_message_content
+        self._disable_events = disable_events
+        self._disable_metrics = disable_metrics
         self._initialized = False
 
     def instrumentation_dependencies(self) -> list[str]:
@@ -62,6 +74,16 @@ class OpenLITBridge(BaseInstrumentor):
                 init_kwargs["disable_batch"] = self._disable_batch
             if "pricing_json" in params and self._pricing_json:
                 init_kwargs["pricing_json"] = self._pricing_json
+            if "capture_message_content" in params:
+                init_kwargs["capture_message_content"] = self._capture_message_content
+            elif not self._capture_message_content:
+                # Older OpenLIT names the switch trace_content.
+                if "trace_content" in params:
+                    init_kwargs["trace_content"] = False
+            if "disable_events" in params:
+                init_kwargs["disable_events"] = self._disable_events
+            if "disable_metrics" in params:
+                init_kwargs["disable_metrics"] = self._disable_metrics
 
             openlit.init(**init_kwargs)
 

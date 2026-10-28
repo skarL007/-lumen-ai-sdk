@@ -119,6 +119,149 @@ class CommunityPricingProvider(BasePricingProvider):
         self._fetch_remote()
         return match_model_pricing(self._table, model)
 
+LITELLM_PRICES_URL = (
+    "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+)
+
+
+def _per_million(value: Any) -> Optional[float]:
+    """A LiteLLM per-token USD price as USD per 1M tokens, or None if unusable."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    rate = float(value) * 1_000_000
+    if rate != rate or rate < 0 or rate == float("inf"):
+        return None
+    return round(rate, 6)
+
+
+def litellm_pricing_table(data: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
+    """
+    Convert LiteLLM's ``model_prices_and_context_window.json`` to LumenAI's
+    format (USD per 1M tokens). Each model is reachable by its LiteLLM key
+    (``gemini/gemini-2.5-flash``) and, when no native entry claims it, by the
+    bare id after the last ``/`` (``gemini-2.5-flash``). Entries without an
+    input price are skipped; a missing cache-read price falls back to the input
+    rate, so cached tokens are never billed below what they may cost.
+    """
+    table: Dict[str, Dict[str, float]] = {}
+    bare: Dict[str, Dict[str, float]] = {}
+    for key, entry in data.items():
+        if not isinstance(entry, dict) or key == "sample_spec":
+            continue
+        rate_in = _per_million(entry.get("input_cost_per_token"))
+        if rate_in is None:
+            continue
+        pricing = {
+            "input": rate_in,
+            "output": _per_million(entry.get("output_cost_per_token")) or 0.0,
+        }
+        cache_read = _per_million(entry.get("cache_read_input_token_cost"))
+        pricing["cache_read"] = rate_in if cache_read is None else cache_read
+        cache_write = _per_million(entry.get("cache_creation_input_token_cost"))
+        if cache_write:
+            pricing["cache_write"] = cache_write
+        table[key] = pricing
+        short = key.rsplit("/", 1)[-1]
+        if short != key:
+            bare.setdefault(short, pricing)
+    for short, pricing in bare.items():
+        table.setdefault(short, pricing)
+    return table
+
+
+class LiteLLMPricingProvider(BasePricingProvider):
+    """
+    Prices from LumenAI's built-in table first, then from LiteLLM's community
+    price list (thousands of models) for anything the table lacks.
+
+    The list is downloaded in a background thread when the provider is created
+    and again after ``ttl_seconds``; a span never waits for the network. Until
+    the first download lands, only the built-in table answers, and models it
+    lacks are exported ``unpriced``. Pass ``path`` to read a local copy instead
+    (offline or pinned deployments).
+
+        LumenAI.init(pricing_provider=LiteLLMPricingProvider())
+    """
+
+    _MAX_BYTES = 16 * 1_048_576  # the list is about 3 MiB
+
+    def __init__(
+        self,
+        url: str = LITELLM_PRICES_URL,
+        path: Optional[str | Path] = None,
+        builtin: Optional[Dict[str, Dict[str, float]]] = None,
+        ttl_seconds: float = 86_400,
+    ):
+        from lumen_ai.schema.semconv import PRICING_TABLE
+
+        if path is None and urllib.parse.urlparse(url).scheme.lower() != "https":
+            raise ValueError("LiteLLMPricingProvider only downloads over https")
+        self._url = url
+        self._path = Path(path) if path is not None else None
+        self._builtin = PRICING_TABLE if builtin is None else builtin
+        self._ttl = ttl_seconds
+        self._table: Dict[str, Dict[str, float]] = {}
+        self._loaded_at = 0.0
+        self._lock = threading.Lock()
+        self._loading: Optional[threading.Thread] = None
+        if self._path is not None:
+            self._load()
+        else:
+            self._refresh_in_background()
+
+    @property
+    def loaded(self) -> bool:
+        """True once a price list has been read."""
+        return bool(self._table)
+
+    def get_pricing(self, model: str) -> Optional[Dict[str, float]]:
+        builtin = match_model_pricing(self._builtin, model)
+        if builtin is not None:
+            return builtin
+        if self._path is None and time.time() - self._loaded_at > self._ttl:
+            self._refresh_in_background()
+        return match_model_pricing(self._table, model)
+
+    def wait_until_loaded(self, timeout: float = 30.0) -> bool:
+        """Block until the current download finishes (useful in scripts and tests)."""
+        thread = self._loading
+        if thread is not None:
+            thread.join(timeout)
+        return self.loaded
+
+    def _refresh_in_background(self) -> None:
+        with self._lock:
+            if self._loading is not None and self._loading.is_alive():
+                return
+            # Back off for the full TTL even if this attempt fails.
+            self._loaded_at = time.time()
+            self._loading = threading.Thread(
+                target=self._load, name="lumen-litellm-prices", daemon=True
+            )
+            self._loading.start()
+
+    def _load(self) -> None:
+        try:
+            if self._path is not None:
+                raw = self._path.read_bytes()
+            else:
+                with urllib.request.urlopen(self._url, timeout=30) as response:
+                    raw = response.read(self._MAX_BYTES + 1)
+            if len(raw) > self._MAX_BYTES:
+                logger.warning("LiteLLMPricingProvider: price list exceeds %d bytes — ignored", self._MAX_BYTES)
+                return
+            data = json.loads(raw.decode("utf-8"))
+            if not isinstance(data, dict):
+                logger.warning("LiteLLMPricingProvider: price list is not a JSON object — ignored")
+                return
+            table = litellm_pricing_table(data)
+            with self._lock:
+                self._table = table
+            logger.info("LiteLLMPricingProvider: %d model prices loaded", len(table))
+        except Exception as e:
+            logger.warning("LiteLLMPricingProvider: could not load prices: %s", e)
+
+
 class RedisExporter(BaseLumenAIExporter):
     """
     Synchronous Redis Streams exporter.
