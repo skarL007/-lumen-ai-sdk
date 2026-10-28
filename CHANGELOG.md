@@ -9,6 +9,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+The fixes marked "real instrumentation" were found by running real instrumentation libraries against LumenAI (`tests/test_real_instrumentations.py`).
+
 ### Added
 - **events**: `unpriced: bool` on every event. It is `true` when a span used tokens but got no price (a model missing from the table, a span with no model id, or a pricing provider that raised), so its `cost_usd` of `0.0` reads as unknown instead of free. A model priced at `$0`, such as a local Ollama model, stays `false`.
 - **metrics**: `events_unpriced` in `lumen_ai.processors.normalizer.get_metrics()` counts those events.
@@ -21,8 +23,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   - Mistral: Large 3 (`mistral-large-latest`), Large 4 (preview), Medium 3.5, Small 4.
   - Bare `text-embedding-3-small`.
 - **pricing**: comments in the table say where a flat rate cannot follow the provider: Claude Haiku 5.5 over 100K prompt tokens, OpenAI over 272K, Gemini Pro over 200K, Gemini prices scheduled to change, and DeepSeek off-peak hours.
+- **events**: `cache_write_tokens`.
+- **budgets**: `BudgetExporter` wraps any exporter and alerts when a tenant crosses 80% and 100% of a USD limit per UTC month or day. An alert calls `on_alert(BudgetAlert)`, exports a `COST_THRESHOLD_EXCEEDED` event (`WARN` / `ERROR`) and logs a WARNING. Unpriced events are counted in the alert.
+- **pricing**: `LiteLLMPricingProvider` keeps the built-in table first and fills the gaps from LiteLLM's community price list (about 4,000 models). It downloads the list over HTTPS in a background thread and refreshes it daily, so spans never wait. `path=` reads a local copy. `litellm_pricing_table()` converts the list to LumenAI's format.
+- **scripts**: `check_prices.py` compares the built-in table with LiteLLM's list and exits 1 on a difference. Known differences where LiteLLM is the stale side are listed in the script. On 2026-10-28 the only one is Mistral Large 4.
+- **tests**: `test_real_instrumentations.py` runs real OpenAI and Anthropic SDK calls under OpenInference, OpenLLMetry, OpenLIT and the OTel contrib instrumentation, against a mocked endpoint, and pins the cost of each.
 
 ### Fixed
+- **cost** (real instrumentation): Anthropic calls traced by OpenLLMetry (`opentelemetry-instrumentation-anthropic`), OpenInference or the Anthropic SDK's own spans were over-billed by about 56% when prompt caching was on. These emitters count cached tokens inside `input_tokens`; LumenAI assumed Anthropic never does and billed them twice. The rule is now per emitter (`CACHE_INCLUSIVE_SCOPES`), then per provider, and an input smaller than the cached tokens is never treated as including them.
+- **cost** (real instrumentation): OpenInference spans (Arize Phoenix) lost their cached tokens, because `llm.token_count.prompt_details.cache_read` was not read. OpenAI calls were over-billed by about 26% on the tested workload.
+- **cost** (real instrumentation): cache writes were free. `gen_ai.usage.cache_creation.input_tokens`, the Anthropic SDK's `gen_ai.usage.cache_write.input_tokens` and OpenInference's `prompt_details.cache_write` are now billed at the model's new `cache_write` rate, else at its input rate. The table has `cache_write` for every Claude model and for GPT-5.6 and GPT-6.
+- **cost** (real instrumentation): a call recorded by two instrumentations, such as OpenInference wrapping the Anthropic SDK's own span, was billed twice. A span whose usage equals the sum of its children's is now stored with zero tokens and zero cost. The same applies to agent spans that carry their children's totals.
+- **openlit** (real instrumentation): `OpenLITBridge` started OpenLIT with prompt capture, events and metrics on. Without an OTLP endpoint, OpenLIT printed prompt and completion text to stdout, which broke the metadata-only promise. It now passes `capture_message_content=False`, `disable_events=True` and `disable_metrics=True`. All three are constructor options.
 - **pricing**: five list prices were wrong:
   - `claude-haiku-4-5` was priced as Claude 3 Haiku ($0.25 / $1.25). It is $1 / $5, with cache reads at $0.10.
   - `claude-opus-4-6` was priced at $15 / $75. It is $5 / $25, with cache reads at $0.50.

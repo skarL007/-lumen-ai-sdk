@@ -147,6 +147,8 @@ PRICING_TABLE: dict[str, dict[str, float]] = {
 - Mistral: https://docs.mistral.ai/inference/pricing
 - Local models (Ollama): always `{"input": 0.0, "output": 0.0, "cache_read": 0.0}`
 
+After editing the table, run `python scripts/check_prices.py`: it compares every price with LiteLLM's community list and exits 1 on a difference. When the provider's own page shows LiteLLM is the stale side, add the pair to `ACKNOWLEDGED` in that script, with the reason.
+
 Use the bare model id the provider's API returns as the key (`gpt-5.4-mini`, not `openai/gpt-5.4-mini`): ids with a `provider/` prefix and dated suffixes resolve to it. If the model has no cached-input discount, repeat its input rate as `cache_read`.
 
 **PR title format:** `feat(pricing): add <provider>/<model-name>`

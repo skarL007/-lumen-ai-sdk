@@ -199,10 +199,24 @@ class EventNormalizerProcessor(SpanProcessor):
                 )
             cache_read_tokens = cost_data.get("cache_read_tokens")
             if cache_read_tokens is None:
-                cache_read_tokens = first_int(attrs, GenAIAttributes.USAGE_CACHE_READ)
+                cache_read_tokens = first_int(
+                    attrs,
+                    GenAIAttributes.USAGE_CACHE_READ,
+                    OpenInferenceAttributes.TOKEN_COUNT_CACHE_READ,
+                )
+            cache_write_tokens = cost_data.get("cache_write_tokens")
+            if cache_write_tokens is None:
+                cache_write_tokens = first_int(
+                    attrs,
+                    GenAIAttributes.USAGE_CACHE_CREATION,
+                    GenAIAttributes.USAGE_CACHE_WRITE,
+                    OpenInferenceAttributes.TOKEN_COUNT_CACHE_WRITE,
+                )
             # Tokens were used but the cost processor stored no price (unknown
             # model, no model id, or a failing pricing provider).
-            unpriced = not cost_data and (tokens_in + tokens_out + cache_read_tokens) > 0
+            unpriced = not cost_data and (
+                tokens_in + tokens_out + cache_read_tokens + cache_write_tokens
+            ) > 0
             if unpriced:
                 _incr("events_unpriced")
 
@@ -229,6 +243,7 @@ class EventNormalizerProcessor(SpanProcessor):
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,
                 "cache_read_tokens": cache_read_tokens,
+                "cache_write_tokens": cache_write_tokens,
                 # Model / tool metadata
                 "model": model,
                 "tool_name": first_str(attrs, GenAIAttributes.TOOL_NAME),

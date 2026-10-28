@@ -15,6 +15,8 @@ class GenAIAttributes:
     USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
     USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
     USAGE_CACHE_READ = "gen_ai.usage.cache_read.input_tokens"
+    USAGE_CACHE_CREATION = "gen_ai.usage.cache_creation.input_tokens"
+    USAGE_CACHE_WRITE = "gen_ai.usage.cache_write.input_tokens"  # Anthropic SDK's own spans
     CONVERSATION_ID = "gen_ai.conversation.id"
     AGENT_ID = "gen_ai.agent.id"
     AGENT_NAME = "gen_ai.agent.name"
@@ -31,6 +33,10 @@ class OpenInferenceAttributes:
     SPAN_KIND = "openinference.span.kind"             # LLM | AGENT | TOOL | CHAIN
     TOKEN_COUNT_PROMPT = "llm.token_count.prompt"
     TOKEN_COUNT_COMPLETION = "llm.token_count.completion"
+    TOKEN_COUNT_CACHE_READ = "llm.token_count.prompt_details.cache_read"
+    TOKEN_COUNT_CACHE_WRITE = "llm.token_count.prompt_details.cache_write"
+    PROVIDER = "llm.provider"
+    SYSTEM = "llm.system"
     COST_TOTAL = "llm.cost.total"
     COST_PROMPT = "llm.cost.prompt"
     COST_COMPLETION = "llm.cost.completion"
@@ -72,40 +78,42 @@ class LumenAIAttributes:
 # prefixed keys below are kept for code that reads them directly.
 # A model missing here exports cost_usd=0.0 with unpriced=True; pass a
 # pricing_provider for contract prices or models added after this date.
+# "cache_write" is the rate for tokens written to the prompt cache (Anthropic
+# 5-minute writes, OpenAI 30-minute writes); without it, writes cost the input rate.
 
 PRICING_TABLE: dict[str, dict[str, float]] = {
     # ── Anthropic (platform.claude.com/docs/en/about-claude/pricing) ─────
-    "claude-fable-5-1":             {"input": 10.00, "output": 50.00, "cache_read": 0.25},
-    "claude-fable-5":               {"input": 10.00, "output": 50.00, "cache_read": 1.00},
-    "claude-opus-5-5":              {"input": 4.00,  "output": 20.00, "cache_read": 0.20},
-    "claude-opus-5":                {"input": 5.00,  "output": 25.00, "cache_read": 0.50},
-    "claude-opus-4-8":              {"input": 5.00,  "output": 25.00, "cache_read": 0.50},
-    "claude-opus-4-7":              {"input": 5.00,  "output": 25.00, "cache_read": 0.50},
-    "claude-opus-4-6":              {"input": 5.00,  "output": 25.00, "cache_read": 0.50},
-    "claude-opus-4-5":              {"input": 5.00,  "output": 25.00, "cache_read": 0.50},
-    "claude-sonnet-5-5":            {"input": 2.00,  "output": 10.00, "cache_read": 0.10},
-    "claude-sonnet-5":              {"input": 2.00,  "output": 10.00, "cache_read": 0.20},
-    "claude-sonnet-4-6":            {"input": 3.00,  "output": 15.00, "cache_read": 0.30},
-    "claude-sonnet-4-5":            {"input": 3.00,  "output": 15.00, "cache_read": 0.30},
+    "claude-fable-5-1":             {"input": 10.00, "output": 50.00, "cache_read": 0.25, "cache_write": 12.50},
+    "claude-fable-5":               {"input": 10.00, "output": 50.00, "cache_read": 1.00, "cache_write": 12.50},
+    "claude-opus-5-5":              {"input": 4.00,  "output": 20.00, "cache_read": 0.20, "cache_write": 5.00},
+    "claude-opus-5":                {"input": 5.00,  "output": 25.00, "cache_read": 0.50, "cache_write": 6.25},
+    "claude-opus-4-8":              {"input": 5.00,  "output": 25.00, "cache_read": 0.50, "cache_write": 6.25},
+    "claude-opus-4-7":              {"input": 5.00,  "output": 25.00, "cache_read": 0.50, "cache_write": 6.25},
+    "claude-opus-4-6":              {"input": 5.00,  "output": 25.00, "cache_read": 0.50, "cache_write": 6.25},
+    "claude-opus-4-5":              {"input": 5.00,  "output": 25.00, "cache_read": 0.50, "cache_write": 6.25},
+    "claude-sonnet-5-5":            {"input": 2.00,  "output": 10.00, "cache_read": 0.10, "cache_write": 2.50},
+    "claude-sonnet-5":              {"input": 2.00,  "output": 10.00, "cache_read": 0.20, "cache_write": 2.50},
+    "claude-sonnet-4-6":            {"input": 3.00,  "output": 15.00, "cache_read": 0.30, "cache_write": 3.75},
+    "claude-sonnet-4-5":            {"input": 3.00,  "output": 15.00, "cache_read": 0.30, "cache_write": 3.75},
     # Haiku 5.5 rises to $0.50 / $2.50 (cache $0.05) for prompts over 100K tokens;
     # a flat table cannot express that, so long prompts are under-reported.
-    "claude-haiku-5-5":             {"input": 0.10,  "output": 0.50,  "cache_read": 0.01},
-    "claude-haiku-4-5":             {"input": 1.00,  "output": 5.00,  "cache_read": 0.10},
-    "anthropic/claude-opus-4-6":    {"input": 5.00,  "output": 25.00, "cache_read": 0.50},
-    "anthropic/claude-sonnet-4-6":  {"input": 3.00,  "output": 15.00, "cache_read": 0.30},
-    "anthropic/claude-haiku-4-5":   {"input": 1.00,  "output": 5.00,  "cache_read": 0.10},
+    "claude-haiku-5-5":             {"input": 0.10,  "output": 0.50,  "cache_read": 0.01, "cache_write": 0.125},
+    "claude-haiku-4-5":             {"input": 1.00,  "output": 5.00,  "cache_read": 0.10, "cache_write": 1.25},
+    "anthropic/claude-opus-4-6":    {"input": 5.00,  "output": 25.00, "cache_read": 0.50, "cache_write": 6.25},
+    "anthropic/claude-sonnet-4-6":  {"input": 3.00,  "output": 15.00, "cache_read": 0.30, "cache_write": 3.75},
+    "anthropic/claude-haiku-4-5":   {"input": 1.00,  "output": 5.00,  "cache_read": 0.10, "cache_write": 1.25},
     # ── OpenAI (developers.openai.com/api/docs/pricing, Standard tier) ──
     # Rates for prompts up to 272K tokens; longer prompts on GPT-5.4 and newer
     # cost more. A model with no cached-input discount repeats its input rate as
     # cache_read, so cached tokens are never billed below the real price.
-    "gpt-6-astra":                  {"input": 10.00, "output": 50.00, "cache_read": 1.00},
-    "gpt-6.1-sol":                  {"input": 2.00,  "output": 10.00, "cache_read": 0.10},
-    "gpt-6.1-terra":                {"input": 1.00,  "output": 5.00,  "cache_read": 0.05},
-    "gpt-6-sol":                    {"input": 2.00,  "output": 10.00, "cache_read": 0.20},
-    "gpt-6-luna":                   {"input": 0.10,  "output": 0.50,  "cache_read": 0.01},
-    "gpt-5.6-sol":                  {"input": 4.00,  "output": 20.00, "cache_read": 0.40},  # promotional
-    "gpt-5.6-terra":                {"input": 2.00,  "output": 12.00, "cache_read": 0.20},
-    "gpt-5.6-luna":                 {"input": 0.20,  "output": 1.20,  "cache_read": 0.02},
+    "gpt-6-astra":                  {"input": 10.00, "output": 50.00, "cache_read": 1.00, "cache_write": 12.50},
+    "gpt-6.1-sol":                  {"input": 2.00,  "output": 10.00, "cache_read": 0.10, "cache_write": 2.50},
+    "gpt-6.1-terra":                {"input": 1.00,  "output": 5.00,  "cache_read": 0.05, "cache_write": 1.25},
+    "gpt-6-sol":                    {"input": 2.00,  "output": 10.00, "cache_read": 0.20, "cache_write": 2.50},
+    "gpt-6-luna":                   {"input": 0.10,  "output": 0.50,  "cache_read": 0.01, "cache_write": 0.125},
+    "gpt-5.6-sol":                  {"input": 4.00,  "output": 20.00, "cache_read": 0.40, "cache_write": 5.00},  # promotional
+    "gpt-5.6-terra":                {"input": 2.00,  "output": 12.00, "cache_read": 0.20, "cache_write": 2.50},
+    "gpt-5.6-luna":                 {"input": 0.20,  "output": 1.20,  "cache_read": 0.02, "cache_write": 0.25},
     "gpt-5.5":                      {"input": 5.00,  "output": 30.00, "cache_read": 0.50},
     "gpt-5.5-pro":                  {"input": 30.00, "output": 180.00, "cache_read": 30.00},
     "gpt-5.4":                      {"input": 2.50,  "output": 15.00, "cache_read": 0.25},
@@ -207,28 +215,34 @@ def compute_cost_usd(
     input_tokens: int,
     output_tokens: int,
     cache_read_tokens: int = 0,
+    cache_write_tokens: int = 0,
 ) -> float:
     """
     USD cost from a pricing dict and token counts (rates are per 1M tokens).
 
-    Uses ``.get(..., 0.0)`` for every term so partial pricing dicts — e.g.
-    community JSON that omits ``cache_read`` — never raise ``KeyError``.
+    ``input_tokens`` must already exclude cached tokens. Uses ``.get(..., 0.0)``
+    for every term so partial pricing dicts — e.g. community JSON that omits
+    ``cache_read`` — never raise ``KeyError``. Cache writes use the
+    ``cache_write`` rate, else the input rate.
     """
     cost = (
         input_tokens * pricing.get("input", 0.0) / 1_000_000
         + output_tokens * pricing.get("output", 0.0) / 1_000_000
         + cache_read_tokens * pricing.get("cache_read", 0.0) / 1_000_000
+        + cache_write_tokens * pricing.get("cache_write", pricing.get("input", 0.0)) / 1_000_000
     )
     return round(cost, 8)
 
 
 def compute_cost(model: str, input_tokens: int, output_tokens: int,
-                 cache_read_tokens: int = 0) -> float:
+                 cache_read_tokens: int = 0, cache_write_tokens: int = 0) -> float:
     """Compute USD cost for a span given model and token counts."""
     pricing = match_model_pricing(PRICING_TABLE, model)
     if not pricing:
         return 0.0
-    return compute_cost_usd(pricing, input_tokens, output_tokens, cache_read_tokens)
+    return compute_cost_usd(
+        pricing, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
+    )
 
 
 # Providers whose gen_ai.usage.input_tokens INCLUDES the cached tokens. For these,
@@ -241,3 +255,38 @@ CACHE_INCLUSIVE_PROVIDERS: tuple[str, ...] = ("openai", "azure")
 def provider_includes_cache_in_input(provider: str) -> bool:
     """True if the emitter folds cached tokens into input_tokens (OpenAI / Azure)."""
     return (provider or "").lower().startswith(CACHE_INCLUSIVE_PROVIDERS)
+
+
+# Instrumentations whose input token count always includes cache reads and
+# writes, whatever the provider: they follow the current OTel GenAI conventions
+# or OpenInference's llm.token_count.prompt. Checked against their spans on
+# 2026-10-28. OpenLIT keeps each provider's own convention, so it and unknown
+# emitters (hand-written spans) fall back to provider_includes_cache_in_input.
+CACHE_INCLUSIVE_SCOPES: tuple[str, ...] = (
+    "openinference.instrumentation.",   # Arize OpenInference
+    "opentelemetry.instrumentation.",   # Traceloop OpenLLMetry
+    "opentelemetry.util.genai",         # official OTel contrib -v2 instrumentations
+    "com.anthropic.sdk",                # Anthropic Python SDK's built-in spans
+)
+
+
+def input_includes_cache(
+    scope_name: str,
+    provider: str,
+    input_tokens: int,
+    cache_read_tokens: int,
+    cache_write_tokens: int,
+) -> bool:
+    """
+    True if ``input_tokens`` already counts the cached tokens, so they must be
+    subtracted before billing input at full rate.
+
+    An input smaller than the cached tokens cannot contain them. Otherwise the
+    emitter decides (``CACHE_INCLUSIVE_SCOPES``), then the provider.
+    """
+    cached = cache_read_tokens + cache_write_tokens
+    if cached == 0 or input_tokens < cached:
+        return False
+    if (scope_name or "").startswith(CACHE_INCLUSIVE_SCOPES):
+        return True
+    return provider_includes_cache_in_input(provider)

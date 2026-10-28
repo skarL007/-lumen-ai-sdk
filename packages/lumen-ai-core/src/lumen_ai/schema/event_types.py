@@ -28,6 +28,7 @@ class LumenAIEvent(TypedDict):
     tokens_in: int
     tokens_out: int
     cache_read_tokens: int
+    cache_write_tokens: int
     model: str
     tool_name: str
     span_kind: str

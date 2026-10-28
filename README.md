@@ -218,16 +218,19 @@ The stamped tenant wins on purpose. If the live context were read first, a span 
 
 ```mermaid
 flowchart TD
-    a(["CostComputingSpanProcessor.on_end"]) --> m{"Model id?<br/>gen_ai.request.model<br/>→ gen_ai.response.model<br/>→ llm.model_name"}
-    m -- "none" --> skip1["No cost entry<br/>(event still exported)"]
-    m -- "found" --> tok["Tokens<br/>gen_ai.usage.* → llm.token_count.*"]
-    tok -- "all zero" --> skip0["No cost entry<br/>(nothing to price)"]
-    tok -- "used" --> price{"Pricing match?<br/>exact key, else longest<br/>separator-anchored prefix"}
-    price -- "unknown model" --> skip2["No cost entry: the event gets<br/>cost_usd = 0.0, unpriced = true<br/>and one WARNING per model"]
-    price -- "rates" --> inc{"Provider folds cache<br/>into input tokens?<br/>(openai, azure)"}
-    inc -- "yes" --> sub["billable_input = input − cache_read"]
+    a(["CostComputingSpanProcessor.on_end"]) --> tok["Tokens: input, output, cache read, cache write<br/>gen_ai.usage.* → llm.token_count.*"]
+    tok --> inc{"Input includes cached tokens?<br/>known emitter, else provider<br/>(openai, azure)"}
+    inc -- "yes" --> sub["billable_input = input − cache_read − cache_write"]
     inc -- "no" --> keep["billable_input = input"]
-    sub & keep --> formula["cost = (billable_input × in<br/>+ output × out<br/>+ cache_read × cache) / 1M"]
+    sub & keep --> dup{"Same usage as its<br/>children together?"}
+    dup -- "yes" --> zero["Zero tokens and cost<br/>(the call is billed on the child)"]
+    dup -- "no" --> used{"Any tokens?"}
+    used -- "no" --> skip0["No cost entry<br/>(nothing to price)"]
+    used -- "yes" --> m{"Model id?<br/>gen_ai.request.model<br/>→ gen_ai.response.model<br/>→ llm.model_name"}
+    m -- "none" --> skip1["No cost entry: the event<br/>gets unpriced = true"]
+    m -- "found" --> price{"Pricing match?<br/>exact key, else longest<br/>separator-anchored prefix"}
+    price -- "unknown model" --> skip2["No cost entry: the event gets<br/>cost_usd = 0.0, unpriced = true<br/>and one WARNING per model"]
+    price -- "rates" --> formula["cost = (billable_input × in<br/>+ output × out<br/>+ cache_read × cache read<br/>+ cache_write × cache write) / 1M"]
     formula --> store[("cost map")]
 ```
 
@@ -356,9 +359,23 @@ With `genai_only=True`, a span is exported only if it has a model, token counts,
 |---|---|---|
 | FastAPI | Set the tenant in middleware or a dependency, reset in `finally`; add `genai_only=True` to drop FastAPI's own spans | [examples/fastapi-quickstart](examples/fastapi-quickstart), [examples/local-observability-demo](examples/local-observability-demo) |
 | Celery | `CeleryInstrumentor`; pass `tenant_id=` as a task kwarg | [examples/celery-background-tasks](examples/celery-background-tasks) |
-| OpenLIT / LangChain | `instrumentors=[OpenLITBridge()]` in `LumenAI.init()` | [examples/langchain-cost-tracking](examples/langchain-cost-tracking) |
+| OpenLIT / LangChain | `instrumentors=[OpenLITBridge()]` in `LumenAI.init()`; the bridge starts OpenLIT without prompt capture, events or metrics | [examples/langchain-cost-tracking](examples/langchain-cost-tracking) |
 | OTLP backends | `enable_otlp=True, otlp_endpoint=...`; TLS is automatic for non-loopback hosts | — |
 | Existing OTel setup | `LumenAI.init()` adopts an already-installed `TracerProvider` instead of replacing it | — |
+
+### Tested with real instrumentation libraries
+
+`tests/test_real_instrumentations.py` runs real OpenAI and Anthropic SDK calls, each with a real instrumentation library installed, against a mocked HTTP endpoint. No key and no network are needed. It then checks the cost LumenAI exports. The libraries disagree on whether the input count includes cached tokens and on what to call cache writes. LumenAI handles each one, and when two of them record the same call, it bills the call once.
+
+| Instrumentation (version tested) | OpenAI | Anthropic | Cache writes |
+|---|---|---|---|
+| OpenInference (`openinference-instrumentation-*` 0.1.66 / 3.1.0) | exact | exact | exact |
+| OpenLLMetry (`opentelemetry-instrumentation-*` 0.62.4) | exact | exact | exact |
+| OpenLIT 1.45 through `OpenLITBridge` | exact | exact | exact |
+| Anthropic Python SDK 2.x built-in spans | — | exact | exact |
+| OTel contrib `opentelemetry-instrumentation-openai-v2` 2.4b0 | upper bound: it does not report cached tokens | — | — |
+
+The tests skip a library that is not installed. OpenInference for Anthropic needs `anthropic>=1.8`, and OpenLIT 1.45 needs `anthropic<1`, so the two cannot share one environment.
 
 ## Event contract
 
@@ -379,7 +396,8 @@ Every exporter receives `export(tenant_id, event)` where `event` is a `LumenAIEv
 | `is_error` | `bool` | Span status is `ERROR` |
 | `cost_usd` | `float` | USD from the price table; `0.0` when the model has no price |
 | `unpriced` | `bool` | `true` when the span used tokens but got no price, so its `0.0` is unknown, not free |
-| `tokens_in`, `tokens_out`, `cache_read_tokens` | `int` | GenAI usage, else OpenInference counts |
+| `tokens_in`, `tokens_out`, `cache_read_tokens` | `int` | GenAI usage, else OpenInference counts, as the emitter reported them |
+| `cache_write_tokens` | `int` | `gen_ai.usage.cache_creation.input_tokens`, the Anthropic SDK's `cache_write`, or OpenInference's `prompt_details.cache_write` |
 | `model`, `tool_name`, `span_kind` | `str` | Span attributes |
 
 The schema has no field that can carry prompt, completion, request-body, or tool-argument content.
@@ -429,7 +447,36 @@ LumenAI.init(pricing_provider=ContractPricing())
 
 `CommunityPricingProvider(url)` loads a remote JSON price table: HTTPS only by default, 1 MiB cap, JSON-object validation, and a one-hour back-off after success or failure.
 
+`LiteLLMPricingProvider()` keeps the built-in table first and fills the gaps from LiteLLM's community price list (about 4,000 models: Groq, xAI, Bedrock, Vertex and more). It downloads the list over HTTPS in a background thread and refreshes it daily; a span never waits for it. `path=` reads a local copy instead.
+
+```python
+from lumen_ai.providers import LiteLLMPricingProvider
+
+LumenAI.init(pricing_provider=LiteLLMPricingProvider())
+```
+
 The built-in table lists standard prices checked on 2026-10-28 (`lumen_ai.schema.semconv.PRICING_TABLE`). A model it does not know is never priced at a guess: its events carry `cost_usd: 0.0` and `unpriced: true`, the first such span per model logs a WARNING, and `get_metrics()["events_unpriced"]` counts them. A model priced at `$0`, such as a local Ollama model, stays `unpriced: false`.
+
+Cache writes are billed at the model's `cache_write` rate: Anthropic's 5-minute rate, or OpenAI's 30-minute rate for GPT-5.6 and GPT-6. Without a `cache_write` rate they are billed at the input rate.
+
+`python scripts/check_prices.py` compares the table with LiteLLM's list and exits 1 when a price differs. A difference means one side is stale; check the provider's page before changing the table.
+
+### Budget alerts per tenant
+
+`BudgetExporter` wraps any exporter and reports when a tenant's spend crosses 80% and 100% of a USD limit per UTC month (or day). Every event still reaches the wrapped exporter. Each crossing fires once per period: it calls your callback, exports a `COST_THRESHOLD_EXCEEDED` event (`WARN` below the limit, `ERROR` at or over it), and logs a WARNING. Events marked `unpriced` are counted in the alert, because they make the spend a lower bound.
+
+```python
+from lumen_ai import BudgetExporter, JsonlExporter, LumenAI
+
+LumenAI.init(exporter=BudgetExporter(
+    JsonlExporter("lumen-events.jsonl"),
+    limits={"acme-health": 50.0},
+    default_limit=10.0,
+    on_alert=lambda alert: print(alert.tenant_id, alert.spent_usd, alert.limit_usd),
+))
+```
+
+Spend is tracked in the process's memory, so with several workers each one sees only its share. Split the limit between workers, or aggregate the exported events downstream.
 
 ## Design decisions
 
@@ -439,6 +486,7 @@ The built-in table lists standard prices checked on 2026-10-28 (`lumen_ai.schema
 | Span processors, not a wrapper SDK | Works with any instrumentation that emits OTel spans | Relies on emitters setting standard attributes |
 | Side maps between processors | Spans are immutable in `on_end`; maps are bounded LRU and popped on read | ~50k in-flight entries max per map |
 | Stamped tenant wins at `on_end` | Prevents cross-tenant billing when a span ends in another request's context | Tenant must be set before the span starts |
+| A span repeating its children's usage is not billed | Two instrumentations of one call, or an agent span carrying totals, would otherwise bill it twice | The outer event reports zero tokens; matching needs the children to end first, which synchronous calls do |
 | Unknown model → `$0` flagged `unpriced`, metadata kept | Never invent a price, never drop the event, and never let a missing price pass for free | Under-reports cost until a price is added; the flag, `events_unpriced` and a WARNING show where |
 | Exporter errors are swallowed and counted | Telemetry must never take the application down | Failures surface through `lumen_ai.processors.normalizer.get_metrics()` and logs, not exceptions |
 | Async exporter on its own event loop | Redis asyncio clients are loop-bound; the caller's loop is never blocked | One background thread per exporter |
@@ -463,11 +511,14 @@ Roadmap: richer exporter examples (ClickHouse, Postgres, Kafka), an OpenLIT comp
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e packages/lumen-ai-core -e packages/lumen-ai-celery -e packages/lumen-ai-openlit
 pip install pytest pytest-cov fastapi httpx ruff mypy build twine pip-audit celery
+# optional: the real-instrumentation tests
+pip install openai "anthropic<1" openlit openinference-instrumentation-openai opentelemetry-instrumentation-openai opentelemetry-instrumentation-anthropic
 
 python -m pytest tests -q
 python -m ruff check packages/lumen-ai-core/src packages/lumen-ai-celery/src packages/lumen-ai-openlit/src examples tests --select E,F,W,I --ignore E501
 python -m mypy packages/lumen-ai-core/src/lumen_ai --ignore-missing-imports
 python scripts/release_gate.py            # full gate, run before any PR
+python scripts/check_prices.py            # built-in prices against LiteLLM's list
 ```
 
 Redis-backed integration tests run when `redis://localhost:6379` is reachable and are skipped otherwise. Benchmarks are opt-in with `LUMEN_RUN_BENCHMARKS=1`.

@@ -4,6 +4,7 @@ from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-de
     BaseInstrumentor,
 )
 
+from lumen_ai.budgets import BudgetAlert, BudgetExporter
 from lumen_ai.processors.tenant import (
     clear_tenant_id,
     get_tenant_id,
@@ -18,6 +19,8 @@ from lumen_ai.sdk import LumenAI
 __all__ = [
     "AsyncRedisExporter",
     "BaseInstrumentor",
+    "BudgetAlert",
+    "BudgetExporter",
     "JsonlExporter",
     "LumenAI",
     "LumenAIEvent",
