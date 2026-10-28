@@ -467,7 +467,7 @@ python scripts/release_gate.py            # full gate, run before any PR
 
 Redis-backed integration tests run when `redis://localhost:6379` is reachable and are skipped otherwise. Benchmarks are opt-in with `LUMEN_RUN_BENCHMARKS=1`.
 
-Releases go through GitHub Trusted Publishing (`.github/workflows/publish.yml`), never from a laptop. See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). A local audit harness (`harness/scripts/run-audit.ps1 -Full`) produces a scored report and dashboard for release reviews.
+Releases go through GitHub Trusted Publishing (`.github/workflows/publish.yml`). The one exception is `0.1.4`, uploaded with `twine` from a local build after `scripts/release_gate.py` passed, because GitHub Actions was unavailable on this account. See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). A local audit harness (`harness/scripts/run-audit.ps1 -Full`) produces a scored report and dashboard for release reviews.
 
 ## Security
 
