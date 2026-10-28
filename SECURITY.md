@@ -120,7 +120,7 @@ To help us reproduce and fix the issue quickly, please include:
 - **Affected component** — which file, class, or function is involved?
 - **Steps to reproduce** — minimal code that demonstrates the issue
 - **Python version** — output of `python --version`
-- **Package version** — output of `pip show lumen-ai-core`
+- **Package version** — output of `pip show lumen-ai-sdk`
 - **Suggested fix** — if you have one (optional but very welcome)
 - **CVE reference** — if this relates to a known CVE in a dependency
 
@@ -166,7 +166,7 @@ LumenAI core has a minimal, intentionally small dependency footprint:
 | `opentelemetry-sdk >= 1.30.0` | `TracerProvider`, `SpanProcessor` base classes | Same project as above |
 | `redis >= 5.0.0` | Redis Streams export | Only used in `RedisExporter`, which is optional and opt-in |
 
-Optional packages (`lumen-ai-celery`, `lumen-ai-openlit`) add `celery >= 5.0` and `openlit >= 1.0` respectively. These are only imported when the corresponding instrumentor is instantiated.
+Optional packages (`lumen-ai-sdk-celery`, `lumen-ai-sdk-openlit`) add `celery >= 5.0` and `openlit >= 1.0` respectively. These are only imported when the corresponding instrumentor is instantiated.
 
 We do not pin transitive dependencies. We recommend users apply their own dependency pinning strategy (e.g. `pip-compile`, `poetry.lock`, `uv.lock`) appropriate to their security posture.
 

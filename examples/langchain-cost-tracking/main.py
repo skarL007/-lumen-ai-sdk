@@ -2,7 +2,7 @@
 LumenAI + LangChain - automatic cost tracking for every LLM call.
 
 Prerequisites:
-    pip install lumen-ai-core lumen-ai-openlit openlit langchain-openai
+    pip install lumen-ai-sdk lumen-ai-sdk-openlit openlit langchain-openai
 
 Usage:
     export OPENAI_API_KEY=<your-key>

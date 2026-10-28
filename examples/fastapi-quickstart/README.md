@@ -28,5 +28,5 @@ docker exec -it fastapi-quickstart-redis-1 \
 Replace the git install in `Dockerfile` with:
 
 ```dockerfile
-RUN pip install fastapi uvicorn anthropic lumen-ai-core
+RUN pip install fastapi uvicorn anthropic lumen-ai-sdk
 ```

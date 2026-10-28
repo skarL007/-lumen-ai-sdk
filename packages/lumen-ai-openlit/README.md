@@ -1,4 +1,4 @@
-# lumen-ai-openlit
+# lumen-ai-sdk-openlit
 
 OpenLIT bridge for LumenAI.
 
@@ -11,7 +11,7 @@ OpenLIT bridge for LumenAI.
 ## Install
 
 ```bash
-pip install lumen-ai-openlit
+pip install lumen-ai-sdk-openlit
 ```
 
 ## Usage

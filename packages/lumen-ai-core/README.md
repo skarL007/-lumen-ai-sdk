@@ -1,6 +1,6 @@
-# lumen-ai-core
+# lumen-ai-sdk
 
-Core package for the LumenAI SDK.
+Core package for the LumenAI SDK. Versions up to 0.1.3 were published as `lumen-ai-core`.
 
 ## Includes
 
@@ -14,7 +14,7 @@ Core package for the LumenAI SDK.
 ## Install
 
 ```bash
-pip install lumen-ai-core
+pip install lumen-ai-sdk
 ```
 
 ## Minimal Example
