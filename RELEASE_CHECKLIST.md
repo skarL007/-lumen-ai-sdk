@@ -1,11 +1,11 @@
 # LumenAI Release Checklist
 
-Use this checklist before tagging or publishing a release. The current one is `0.1.5`.
+Use this checklist before tagging or publishing a release. The current one is `0.1.6`.
 
 ## Current Status
 
-- PyPI: `lumen-ai-sdk`, `lumen-ai-sdk-celery` and `lumen-ai-sdk-openlit` at `0.1.4`, until `v0.1.5` is published.
-- Remote GitHub Actions: unavailable for this repository, so `0.1.4` and `0.1.5` are uploaded with `twine` from a local build (see "Local upload" below).
+- PyPI: `lumen-ai-sdk`, `lumen-ai-sdk-celery` and `lumen-ai-sdk-openlit` at `0.1.5`, until `v0.1.6` is published.
+- Remote GitHub Actions: unavailable for this repository, so `0.1.4`, `0.1.5` and `0.1.6` are uploaded with `twine` from a local build (see "Local upload" below).
 
 ## Manual Gate
 
@@ -41,7 +41,7 @@ Then visually review:
 Do not publish while any of these are true:
 
 - `scripts/release_gate.py` does not pass on the commit being tagged.
-- The release tag does not match package versions exactly, for example `v0.1.5` for version `0.1.5` in all four `pyproject.toml` files and the three `__version__` strings.
+- The release tag does not match package versions exactly, for example `v0.1.6` for version `0.1.6` in all four `pyproject.toml` files and the three `__version__` strings.
 - `CHANGELOG.md` has no dated section for the version.
 
 ## Publish Sequence
@@ -50,8 +50,8 @@ Do not publish while any of these are true:
 2. Create and push the tag:
 
    ```powershell
-   git tag v0.1.5
-   git push origin v0.1.5
+   git tag v0.1.6
+   git push origin v0.1.6
    ```
 
 3. Publish through the Trusted Publishing workflow (`.github/workflows/publish.yml`, one environment per package: `pypi`, `pypi-celery`, `pypi-openlit`), or through "Local upload" while Actions is unavailable.
@@ -70,11 +70,11 @@ Do not publish while any of these are true:
 Only while GitHub Actions is unavailable:
 
 ```powershell
-python -m build packages/lumen-ai-core --outdir dist-0.1.5
-python -m build packages/lumen-ai-celery --outdir dist-0.1.5
-python -m build packages/lumen-ai-openlit --outdir dist-0.1.5
-python -m twine check dist-0.1.5/*
-python -m twine upload -u __token__ dist-0.1.5/*
+python -m build packages/lumen-ai-core --outdir dist-0.1.6
+python -m build packages/lumen-ai-celery --outdir dist-0.1.6
+python -m build packages/lumen-ai-openlit --outdir dist-0.1.6
+python -m twine check dist-0.1.6/*
+python -m twine upload -u __token__ dist-0.1.6/*
 ```
 
 The maintainer pastes a PyPI API token at the prompt. Delete the token at <https://pypi.org/manage/account/> once the upload is confirmed.

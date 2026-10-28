@@ -40,4 +40,4 @@ __all__ = [
     "reset_tenant_id",
     "set_tenant_id",
 ]
-__version__ = "0.1.5"
+__version__ = "0.1.6"
