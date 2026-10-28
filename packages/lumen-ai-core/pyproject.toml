@@ -1,7 +1,7 @@
 [project]
 name = "lumen-ai-sdk"
-version = "0.1.4"
-description = "LumenAI Core - Real-time FinOps & Observability layer for Generative AI"
+version = "0.1.5"
+description = "LumenAI SDK - per-tenant GenAI cost from OpenTelemetry spans, metadata only"
 requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "MIT" }

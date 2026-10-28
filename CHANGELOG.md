@@ -9,7 +9,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-The fixes marked "real instrumentation" were found by running real instrumentation libraries against LumenAI (`tests/test_real_instrumentations.py`).
+Nothing yet.
+
+---
+
+## [0.1.5] - 2026-10-28
+
+Uploaded with `twine` from a local build after `scripts/release_gate.py` passed, as `0.1.4` was. The fixes marked "real instrumentation" were found by running real instrumentation libraries against LumenAI (`tests/test_real_instrumentations.py`).
 
 ### Added
 - **events**: `unpriced: bool` on every event. It is `true` when a span used tokens but got no price (a model missing from the table, a span with no model id, or a pricing provider that raised), so its `cost_usd` of `0.0` reads as unknown instead of free. A model priced at `$0`, such as a local Ollama model, stays `false`.
@@ -48,6 +54,7 @@ The fixes marked "real instrumentation" were found by running real instrumentati
 - **pricing**: `deepseek/deepseek-v3.2` and `deepseek/deepseek-r1`. DeepSeek no longer lists them: `deepseek-chat` and `deepseek-reasoner` were discontinued on 2026-07-24. Spans that still name them export `unpriced: true` instead of an unverified price.
 
 ### Changed
+- **packaging**: the `lumen-ai-sdk` summary on PyPI no longer says "LumenAI Core".
 - **docs**: the README no longer shows the CI badge. It reported "failing" while GitHub Actions is unavailable for this repository, not because of the code; `scripts/release_gate.py` still runs the same checks locally.
 
 ---
