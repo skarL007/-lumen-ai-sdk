@@ -9,7 +9,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+- **docs**: the README shows a real-bill check: on 6 real OpenRouter `gpt-4o-mini` calls made from Axon Voice, LumenAI's cost equals OpenRouter's `usage.cost`, cache reads included.
 
 ---
 
