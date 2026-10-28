@@ -78,7 +78,7 @@ def test_set_tenant_strips_whitespace():
 # ---------------------------------------------------------------------------
 
 def test_cost_haiku_1m_tokens():
-    """claude-haiku-4-5: $0.25/M in + $1.25/M out = $1.50 for 1M each."""
+    """claude-haiku-4-5: $1/M in + $5/M out = $6.00 for 1M each."""
     pricing = DefaultPricingProvider(PRICING_TABLE)
     proc = CostComputingSpanProcessor(pricing)
 
@@ -88,7 +88,7 @@ def test_cost_haiku_1m_tokens():
     proc.on_end(span)
 
     cost_data = get_span_cost_data(span)
-    assert abs(cost_data["cost_usd"] - 1.50) < 0.001
+    assert abs(cost_data["cost_usd"] - 6.00) < 0.001
 
 
 def test_cost_unknown_model_no_crash():
@@ -128,7 +128,10 @@ def test_cost_cache_read_with_minimal_input():
 # ---------------------------------------------------------------------------
 
 def test_pricing_table_has_required_models():
-    required = ["claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-6"]
+    required = [
+        "claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-6",
+        "claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1",
+    ]
     for model in required:
         assert model in PRICING_TABLE, f"Missing: {model}"
 

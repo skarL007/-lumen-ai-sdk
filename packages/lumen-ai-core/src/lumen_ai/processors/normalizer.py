@@ -31,7 +31,13 @@ logger = logging.getLogger(__name__)
 # Health counters — make otherwise-silent event drops observable.
 # ---------------------------------------------------------------------------
 _metrics_lock = threading.Lock()
-_metrics = {"events_exported": 0, "export_errors": 0, "events_dropped": 0, "events_skipped": 0}
+_metrics = {
+    "events_exported": 0,
+    "export_errors": 0,
+    "events_dropped": 0,
+    "events_skipped": 0,
+    "events_unpriced": 0,
+}
 
 
 def _incr(key: str) -> None:
@@ -41,7 +47,9 @@ def _incr(key: str) -> None:
 
 def get_metrics() -> dict:
     """Snapshot of counters: events_exported / export_errors / events_dropped /
-    events_skipped (untyped spans ignored because ``genai_only`` is on)."""
+    events_skipped (untyped spans ignored because ``genai_only`` is on) /
+    events_unpriced (events that used tokens but got no price, so their
+    ``cost_usd`` of 0.0 is unknown, not free)."""
     with _metrics_lock:
         return dict(_metrics)
 
@@ -192,6 +200,11 @@ class EventNormalizerProcessor(SpanProcessor):
             cache_read_tokens = cost_data.get("cache_read_tokens")
             if cache_read_tokens is None:
                 cache_read_tokens = first_int(attrs, GenAIAttributes.USAGE_CACHE_READ)
+            # Tokens were used but the cost processor stored no price (unknown
+            # model, no model id, or a failing pricing provider).
+            unpriced = not cost_data and (tokens_in + tokens_out + cache_read_tokens) > 0
+            if unpriced:
+                _incr("events_unpriced")
 
             event: LumenAIEvent = {
                 "id": str(uuid.uuid4()),
@@ -209,8 +222,10 @@ class EventNormalizerProcessor(SpanProcessor):
                 "message": span.name or "",
                 "duration_ms": _span_duration_ms(span),
                 "is_error": error,
-                # Cost data — zero if CostProcessor did not run or found no pricing
+                # Cost data — zero if CostProcessor did not run or found no pricing;
+                # ``unpriced`` tells a missing price apart from a free model.
                 "cost_usd": cost_data.get("cost_usd", 0.0),
+                "unpriced": unpriced,
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,
                 "cache_read_tokens": cache_read_tokens,

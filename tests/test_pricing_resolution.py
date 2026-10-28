@@ -26,6 +26,18 @@ from lumen_ai.schema.semconv import PRICING_TABLE, compute_cost
         ("gpt-4.1-mini-2025-04-14", "gpt-4.1-mini"),  # must NOT resolve to gpt-4.1
         ("gpt-4o-2024-11-20", "gpt-4o"),              # base id keeps its own tier
         ("claude-sonnet-4-6", "claude-sonnet-4-6"),   # exact match unchanged
+        ("claude-opus-5-5", "claude-opus-5-5"),       # must NOT resolve to claude-opus-5
+        ("claude-fable-5-1", "claude-fable-5-1"),     # must NOT resolve to claude-fable-5
+        ("claude-haiku-4-5-20251001", "claude-haiku-4-5"),
+        ("anthropic/claude-sonnet-5-5", "claude-sonnet-5-5"),  # prefixed id, bare key
+        ("gpt-5.5", "gpt-5.5"),                       # "." is no separator: not gpt-5
+        ("gpt-5-mini-2025-08-07", "gpt-5-mini"),      # must NOT resolve to gpt-5
+        ("gpt-5.4-mini-2026-03-17", "gpt-5.4-mini"),
+        ("gemini-2.5-flash-lite", "gemini-2.5-flash-lite"),  # not gemini-2.5-flash
+        ("models/gemini-2.5-flash", "gemini-2.5-flash"),     # google-genai style id
+        ("mistral-large-latest", "mistral-large"),    # alias of Mistral Large 3
+        ("mistral-large-4-0", "mistral-large-4"),     # must NOT resolve to Large 3
+        ("deepseek-flash", "deepseek-flash"),
     ],
 )
 def test_dated_model_ids_resolve_to_their_own_tier(model, expected_key):

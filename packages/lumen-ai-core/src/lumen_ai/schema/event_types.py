@@ -24,6 +24,7 @@ class LumenAIEvent(TypedDict):
     duration_ms: int
     is_error: bool
     cost_usd: float
+    unpriced: bool
     tokens_in: int
     tokens_out: int
     cache_read_tokens: int
