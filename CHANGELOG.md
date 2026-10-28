@@ -9,6 +9,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- **budgets**: `BudgetExporter(store=...)` takes a `BudgetStore`. `MemoryBudgetStore` is the default and behaves as before. `RedisBudgetStore` shares one total per tenant and period between workers, keeps it across restarts, and alerts each threshold once across all of them (atomic `HINCRBYFLOAT` and `SET NX`, 40-day key TTL). A store error is logged and the event is still exported.
+- **budgets**: `BudgetExporter.spent()` takes an optional `period`.
+
 ### Changed
 - **docs**: the README shows a real-bill check: on 6 real OpenRouter `gpt-4o-mini` calls made from Axon Voice, LumenAI's cost equals OpenRouter's `usage.cost`, cache reads included.
 

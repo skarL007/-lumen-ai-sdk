@@ -11,15 +11,18 @@ crosses a threshold (80% and 100% by default) it fires once per period:
   (severity ``WARN`` below the limit, ``ERROR`` at or over it);
 * a WARNING is logged.
 
-Spend lives in this process's memory. With several workers, each one tracks
-only its own share; give each worker its slice of the limit, or aggregate the
-exported events downstream.
+Spend lives in a ``BudgetStore``. The default, ``MemoryBudgetStore``, keeps it
+in this process: with several workers each one tracks only its own share, and
+a restart starts from zero. ``RedisBudgetStore`` keeps it in Redis, so every
+worker adds to one total, it survives restarts, and each threshold alerts once
+across all of them.
 
     LumenAI.init(exporter=BudgetExporter(
         JsonlExporter("events.jsonl"),
         limits={"acme": 50.0},
         default_limit=10.0,
         on_alert=lambda alert: notify(alert.tenant_id, alert.spent_usd),
+        store=RedisBudgetStore(redis.Redis.from_url("redis://localhost:6379/0")),
     ))
 """
 from __future__ import annotations
@@ -29,7 +32,7 @@ import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable, Mapping, Optional
+from typing import Any, Callable, Mapping, Optional, Protocol
 
 # providers imports the processors package, which imports providers back; load
 # the processors first so either module can be the first one imported.
@@ -56,6 +59,101 @@ class BudgetAlert:
     unpriced_events: int
 
 
+class BudgetStore(Protocol):
+    """Where ``BudgetExporter`` keeps spend per tenant and period."""
+
+    def add(self, tenant_id: str, period: str, cost_usd: float, unpriced: bool) -> tuple[float, int]:
+        """Add one event; return the period's total USD and unpriced-event count."""
+        ...
+
+    def claim(self, tenant_id: str, period: str, threshold: float) -> bool:
+        """True the first time ``threshold`` is claimed for this tenant and period."""
+        ...
+
+    def spent(self, tenant_id: str, period: str) -> float:
+        ...
+
+
+class MemoryBudgetStore:
+    """Spend in this process's memory; only each tenant's latest period is kept."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        # tenant -> [period, spent_usd, unpriced_events, claimed thresholds]
+        self._state: dict[str, list] = {}
+
+    def _current(self, tenant_id: str, period: str) -> list:
+        state = self._state.get(tenant_id)
+        if state is None or state[0] != period:
+            state = [period, 0.0, 0, set()]
+            self._state[tenant_id] = state
+        return state
+
+    def add(self, tenant_id: str, period: str, cost_usd: float, unpriced: bool) -> tuple[float, int]:
+        with self._lock:
+            state = self._current(tenant_id, period)
+            state[1] += cost_usd
+            state[2] += int(unpriced)
+            return state[1], state[2]
+
+    def claim(self, tenant_id: str, period: str, threshold: float) -> bool:
+        with self._lock:
+            claimed = self._current(tenant_id, period)[3]
+            if threshold in claimed:
+                return False
+            claimed.add(threshold)
+            return True
+
+    def spent(self, tenant_id: str, period: str) -> float:
+        with self._lock:
+            state = self._state.get(tenant_id)
+            return state[1] if state and state[0] == period else 0.0
+
+
+class RedisBudgetStore:
+    """
+    Spend in Redis, shared by every process that uses the same keys.
+
+    Each tenant and period is one hash, ``{prefix}:{tenant}:{period}``, with
+    ``spent_usd`` (``HINCRBYFLOAT``) and ``unpriced`` (``HINCRBY``); a threshold
+    is claimed with ``SET NX`` on ``{key}:alert:{threshold}``. All three are
+    atomic, so concurrent workers neither lose spend nor alert twice. Keys expire
+    ``ttl_seconds`` after the period's last event (40 days by default).
+
+    Args:
+        client: a synchronous ``redis.Redis`` (or compatible) client.
+        prefix: key prefix.
+        ttl_seconds: lifetime of a period's keys.
+    """
+
+    def __init__(self, client: Any, *, prefix: str = "lumen:budget", ttl_seconds: int = 40 * 86400) -> None:
+        if ttl_seconds <= 0:
+            raise ValueError("ttl_seconds must be positive")
+        self._client = client
+        self._prefix = prefix
+        self._ttl = ttl_seconds
+
+    def _key(self, tenant_id: str, period: str) -> str:
+        return f"{self._prefix}:{tenant_id}:{period}"
+
+    def add(self, tenant_id: str, period: str, cost_usd: float, unpriced: bool) -> tuple[float, int]:
+        key = self._key(tenant_id, period)
+        total = float(self._client.hincrbyfloat(key, "spent_usd", cost_usd))
+        if unpriced:
+            count = int(self._client.hincrby(key, "unpriced", 1))
+        else:
+            count = int(self._client.hget(key, "unpriced") or 0)
+        self._client.expire(key, self._ttl)
+        return total, count
+
+    def claim(self, tenant_id: str, period: str, threshold: float) -> bool:
+        key = f"{self._key(tenant_id, period)}:alert:{threshold:g}"
+        return bool(self._client.set(key, "1", nx=True, ex=self._ttl))
+
+    def spent(self, tenant_id: str, period: str) -> float:
+        return float(self._client.hget(self._key(tenant_id, period), "spent_usd") or 0.0)
+
+
 class BudgetExporter(BaseLumenAIExporter):
     """
     Exporter wrapper that enforces nothing but reports budget crossings.
@@ -68,6 +166,8 @@ class BudgetExporter(BaseLumenAIExporter):
         period: ``"month"`` (default) or ``"day"``, in UTC.
         thresholds: shares of the limit that alert, each once per period.
         on_alert: called with a ``BudgetAlert``; exceptions are logged, never raised.
+        store: where spend is kept; ``MemoryBudgetStore()`` when omitted. A store
+            that raises is logged and skipped: the event is exported regardless.
     """
 
     def __init__(
@@ -79,6 +179,7 @@ class BudgetExporter(BaseLumenAIExporter):
         period: str = "month",
         thresholds: tuple[float, ...] = (0.8, 1.0),
         on_alert: Optional[Callable[[BudgetAlert], None]] = None,
+        store: Optional[BudgetStore] = None,
     ) -> None:
         if period not in _PERIOD_FORMATS:
             raise ValueError(f"period must be one of {sorted(_PERIOD_FORMATS)}, not {period!r}")
@@ -94,18 +195,17 @@ class BudgetExporter(BaseLumenAIExporter):
         self._period_adjective = _PERIOD_ADJECTIVES[period]
         self._thresholds = tuple(sorted(thresholds))
         self._on_alert = on_alert
-        self._lock = threading.Lock()
-        # tenant -> [period, spent_usd, unpriced_events, alerted thresholds]
-        self._state: dict[str, list] = {}
+        self._store: BudgetStore = store if store is not None else MemoryBudgetStore()
+        # tenant -> latest period seen by this process, for spent()
+        self._latest: dict[str, str] = {}
 
     def limit_for(self, tenant_id: str) -> Optional[float]:
         return self._limits.get(tenant_id, self._default_limit)
 
-    def spent(self, tenant_id: str) -> float:
-        """USD this tenant has spent in its current period (0.0 if untracked)."""
-        with self._lock:
-            state = self._state.get(tenant_id)
-            return state[1] if state else 0.0
+    def spent(self, tenant_id: str, period: Optional[str] = None) -> float:
+        """USD this tenant spent in ``period`` (default: its latest one), 0.0 if untracked."""
+        period = period or self._latest.get(tenant_id)
+        return self._store.spent(tenant_id, period) if period else 0.0
 
     def export(self, tenant_id: str, event: LumenAIEvent) -> None:
         self._exporter.export(tenant_id, event)
@@ -115,22 +215,19 @@ class BudgetExporter(BaseLumenAIExporter):
         if limit is None:
             return
         period = self._period_of(event)
-        crossed: list[BudgetAlert] = []
-        with self._lock:
-            state = self._state.get(tenant_id)
-            if state is None or state[0] != period:
-                state = [period, 0.0, 0, set()]
-                self._state[tenant_id] = state
-            state[1] += float(event.get("cost_usd") or 0.0)
-            if event.get("unpriced"):
-                state[2] += 1
-            for threshold in self._thresholds:
-                if threshold not in state[3] and state[1] >= threshold * limit:
-                    state[3].add(threshold)
-                    crossed.append(BudgetAlert(
-                        tenant_id=tenant_id, period=period, threshold=threshold,
-                        spent_usd=round(state[1], 8), limit_usd=limit, unpriced_events=state[2],
-                    ))
+        self._latest[tenant_id] = period
+        try:
+            total, unpriced = self._store.add(
+                tenant_id, period, float(event.get("cost_usd") or 0.0), bool(event.get("unpriced")))
+            crossed = [
+                BudgetAlert(tenant_id=tenant_id, period=period, threshold=threshold,
+                            spent_usd=round(total, 8), limit_usd=limit, unpriced_events=unpriced)
+                for threshold in self._thresholds
+                if total >= threshold * limit and self._store.claim(tenant_id, period, threshold)
+            ]
+        except Exception:
+            logger.warning("BudgetExporter could not update the budget store", exc_info=True)
+            return
         for alert in crossed:
             self._alert(alert, event)
 

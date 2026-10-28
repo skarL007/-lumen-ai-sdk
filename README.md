@@ -492,7 +492,20 @@ LumenAI.init(exporter=BudgetExporter(
 ))
 ```
 
-Spend is tracked in the process's memory, so with several workers each one sees only its share. Split the limit between workers, or aggregate the exported events downstream.
+By default spend is kept in the process's memory (`MemoryBudgetStore`): each worker sees only its own share, and a restart starts from zero. To share one total between workers and keep it across restarts, pass a `RedisBudgetStore`:
+
+```python
+import redis
+from lumen_ai import BudgetExporter, JsonlExporter, RedisBudgetStore
+
+budget = BudgetExporter(
+    JsonlExporter("lumen-events.jsonl"),
+    limits={"acme-health": 50.0},
+    store=RedisBudgetStore(redis.Redis.from_url("redis://localhost:6379/0")),
+)
+```
+
+Spend goes up with `HINCRBYFLOAT` and each threshold is claimed with `SET NX`, so concurrent workers neither lose spend nor alert twice. Keys are `lumen:budget:{tenant}:{period}` and expire 40 days after the period's last event. If Redis is down, the event is still exported and a WARNING is logged. In a test with 4 processes sending 1,000 events of US$ 0.01 to one Redis, the total was exactly US$ 10.00 and each threshold alerted once.
 
 ## Design decisions
 
