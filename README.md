@@ -1,3 +1,5 @@
+![LumenAI: cost per tenant for GenAI. One amber line splits into three bars, one per tenant.](docs/assets/lumen-banner.png)
+
 # LumenAI SDK
 
 **Metadata-only FinOps and observability for Generative AI.** LumenAI is an OpenTelemetry extension for Python that turns GenAI spans into tenant-attributed cost events, so you can answer *which customer caused this LLM bill*, *which model is failing*, and *which background job is burning tokens*, without ever exporting a prompt, a completion, or a tool argument.
