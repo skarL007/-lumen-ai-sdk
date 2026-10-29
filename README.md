@@ -379,7 +379,7 @@ The tests skip a library that is not installed. OpenInference for Anthropic need
 
 ### Checked against a real bill
 
-On 2026-10-28, LumenAI 0.1.5 from PyPI ran inside [Axon Voice](https://github.com/skarL007/Axon-Voice), a voice assistant that calls its models over plain HTTP. It made 6 real OpenRouter calls to `openai/gpt-4o-mini`, each with the same 2.2k-token system prompt. LumenAI's cost matched the `usage.cost` that OpenRouter reported on every call. From the third call on, 2,176 input tokens were cache reads, and LumenAI applied the same discount.
+On 2026-10-28, LumenAI 0.1.5 from PyPI ran inside Axon Voice (a private project, described on the [author's portfolio](https://skarl007.github.io/)), a voice assistant that calls its models over plain HTTP. It made 6 real OpenRouter calls to `openai/gpt-4o-mini`, each with the same 2.2k-token system prompt. LumenAI's cost matched the `usage.cost` that OpenRouter reported on every call. From the third call on, 2,176 input tokens were cache reads, and LumenAI applied the same discount.
 
 | Call | Input tokens | Cache reads | LumenAI (US$) | OpenRouter (US$) |
 |---|---|---|---|---|
