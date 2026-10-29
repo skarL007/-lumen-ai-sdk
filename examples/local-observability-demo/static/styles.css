@@ -131,6 +131,26 @@ h1 { margin: 0; max-width: 22ch; font-size: clamp(28px, 3.4vw, 44px); line-heigh
 .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn-primary:hover { filter: brightness(1.06); border-color: var(--accent); }
 
+/* ---------- processor chain ---------- */
+/* Five equal columns put the node centres at 10%, 30%, 50%, 70% and 90%. */
+.pipe { padding: 16px 18px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.pipe-track { position: relative; }
+.pipe-track::before { content: ""; position: absolute; left: 10%; right: 10%; top: 6px; height: 2px; background: var(--line); }
+.pipe-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.pipe-steps li { display: grid; justify-items: center; gap: 2px; min-width: 0; text-align: center; }
+.pipe-steps li::before { content: ""; position: relative; z-index: 1; width: 14px; height: 14px; margin-bottom: 6px; border: 2px solid var(--line); border-radius: 50%; background: var(--panel); }
+.pipe.has-events li:last-child::before { border-color: var(--accent); }
+.pipe-steps b { font: 600 12.5px/1.2 var(--mono); }
+.pipe-steps small { font-size: 12px; line-height: 1.3; color: var(--muted); }
+.pipe-dot { position: absolute; z-index: 2; top: 2px; left: 10%; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), 0 0 14px var(--accent); opacity: 0; }
+.pipe-error .pipe-dot { background: var(--err); box-shadow: 0 0 0 4px rgba(242, 104, 92, 0.16), 0 0 14px var(--err); }
+.pipe-now { margin: 12px 0 0; font: 500 12.5px/1.4 var(--mono); color: var(--muted); text-align: center; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .pipe { padding: 14px 8px 12px; }
+  .pipe-steps b { font-size: 10.5px; letter-spacing: -0.02em; }
+  .pipe-steps small { display: none; }
+}
+
 /* ---------- KPIs ---------- */
 /* Phones: total and tokens get full rows, the three counts share one. */
 .kpis { display: grid; gap: 1px; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
@@ -208,4 +228,32 @@ h2 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.005em; }
 
 @media (prefers-reduced-motion: no-preference) {
   .bar i { transition: width 0.5s ease; }
+
+  .chip-live::before { animation: live 1.6s ease-in-out infinite; }
+
+  /* one span crossing the chain (TRAVEL_MS in app.js), each node lighting as it passes */
+  .pipe.run .pipe-dot { animation: travel 240ms linear; }
+  .pipe.run li::before { animation: node 160ms ease-out; }
+  .pipe.run li:nth-child(2)::before { animation-delay: 60ms; }
+  .pipe.run li:nth-child(3)::before { animation-delay: 120ms; }
+  .pipe.run li:nth-child(4)::before { animation-delay: 180ms; }
+  .pipe.run li:nth-child(5)::before { animation-delay: 240ms; }
+  .pipe-error.run li::before { --flash: var(--err); }
+
+  .events tr.enter td { animation: land 0.3s ease-out; }
+  .tenant-row.enter { animation: rise 0.3s ease-out; }
+  .checks li.flip .tick { animation: pop 0.42s cubic-bezier(0.2, 1.6, 0.4, 1); }
+  .kpi strong.bump { animation: glow 0.45s ease-out; }
 }
+
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes live { 50% { opacity: 0.35; } }
+@keyframes travel {
+  0% { left: 10%; opacity: 0; }
+  10%, 90% { opacity: 1; }
+  100% { left: 90%; opacity: 0; }
+}
+@keyframes node { 0% { border-color: var(--flash, var(--accent)); background: var(--flash, var(--accent)); transform: scale(1.3); } }
+@keyframes land { from { opacity: 0; transform: translateY(-6px); background: var(--accent-soft); } }
+@keyframes pop { from { transform: scale(0.4); } }
+@keyframes glow { from { text-shadow: 0 0 16px var(--accent); } }

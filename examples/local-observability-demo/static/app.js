@@ -2,7 +2,12 @@
 // without a backend (a static host), it replays static/recorded-events.json,
 // a real run of the README scenario recorded by record.py. On a serverless
 // host (per-request store), each call returns the events it exported and this
-// page keeps them, so visitors never share data.
+// page keeps them, so visitors never share data. A static copy can set
+// data-recording-only on <html> to skip the backend probe (and its 404).
+//
+// New events play in one at a time: each span crosses the processor chain,
+// lands in the table, and the totals, bars and checks follow it. With
+// prefers-reduced-motion, or in a hidden tab, they render at once.
 
 const CONTENT_KEYS = ["prompt", "completion", "input.value", "output.value", "messages"];
 const KIND = {
@@ -20,8 +25,20 @@ const theme = new URLSearchParams(location.search).get("theme");
 if (theme === "dark" || theme === "light") document.documentElement.dataset.theme = theme;
 
 const usd = (value) => `$${Number(value || 0).toFixed(6)}`;
-const int = (value) => Number(value || 0).toLocaleString("en-US");
+const int = (value) => Math.round(Number(value || 0)).toLocaleString("en-US");
 const count = (n, one, many = `${one}s`) => `${int(n)} ${n === 1 ? one : many}`;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const RECORDING_ONLY = document.documentElement.hasAttribute("data-recording-only");
+const MOTION = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+const TRAVEL_MS = 240; // the span crossing the chain
+const STEP_MS = 380; // one event to the next
+const MAX_PLAYED = 40; // longer histories render at once
+const play = { token: 0, active: false };
+const shown = new Map(); // KPI id → numbers on screen
+const widths = new Map(); // tenant → bar width (%)
+const verdicts = new Map(); // check title → last status
+const animating = () => MOTION && play.active && !document.hidden;
 
 function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
@@ -100,13 +117,42 @@ function checks(events) {
 }
 
 /* ---------- rendering ---------- */
+// Counts a KPI up from the numbers on screen while events are playing.
+function setKpi(id, values, format) {
+  const node = $(id);
+  const from = shown.get(id) || values.map(() => 0);
+  shown.set(id, values);
+  cancelAnimationFrame(node.raf);
+  clearTimeout(node.done);
+  if (!animating() || values.every((value, i) => value === from[i])) {
+    node.textContent = format(values);
+    return;
+  }
+  // The exact figure lands even if the page gets no frames (a background tab).
+  node.done = setTimeout(() => {
+    cancelAnimationFrame(node.raf);
+    node.textContent = format(values);
+  }, 460);
+  node.classList.remove("bump");
+  void node.offsetWidth;
+  node.classList.add("bump");
+  const start = performance.now();
+  const frame = (now) => {
+    const k = Math.min((now - start) / 420, 1);
+    const ease = 1 - (1 - k) ** 3;
+    node.textContent = format(values.map((value, i) => from[i] + (value - from[i]) * ease));
+    if (k < 1) node.raf = requestAnimationFrame(frame);
+  };
+  node.raf = requestAnimationFrame(frame);
+}
+
 function render() {
   const { rows, total } = summarize(state.events);
-  $("#kpi-cost").textContent = usd(total.cost);
-  $("#kpi-tenants").textContent = int(rows.length);
-  $("#kpi-events").textContent = `${int(total.events)} · ${int(total.llm)}`;
-  $("#kpi-tokens").textContent = `${int(total.tin)} · ${int(total.tout)} · ${int(total.cached)}`;
-  $("#kpi-errors").textContent = int(total.errors);
+  setKpi("#kpi-cost", [total.cost], ([cost]) => usd(cost));
+  setKpi("#kpi-tenants", [rows.length], ([n]) => int(n));
+  setKpi("#kpi-events", [total.events, total.llm], ([events, llm]) => `${int(events)} · ${int(llm)}`);
+  setKpi("#kpi-tokens", [total.tin, total.tout, total.cached], (values) => values.map(int).join(" · "));
+  setKpi("#kpi-errors", [total.errors], ([n]) => int(n));
 
   const privacy = $("#privacy-chip");
   const leaked = checks(state.events)[1];
@@ -117,15 +163,25 @@ function render() {
   const list = $("#tenant-list");
   list.replaceChildren();
   const max = Math.max(...rows.map((row) => row.cost), 0);
+  const grow = [];
   for (const row of rows) {
     const share = total.cost > 0 ? (row.cost / total.cost) * 100 : 0;
     const width = max > 0 ? Math.max((row.cost / max) * 100, 0.8) : 0.8;
-    list.append(el("li", { class: "tenant-row" },
+    // Bars start where they were, so a new tenant can visibly shrink the others.
+    const isNew = !widths.has(row.tenant);
+    const bar = el("i", { style: `width:${(animating() ? widths.get(row.tenant) ?? 0 : width).toFixed(2)}%` });
+    grow.push([bar, width]);
+    widths.set(row.tenant, width);
+    list.append(el("li", { class: `tenant-row${isNew && animating() ? " enter" : ""}` },
       el("span", { class: "tenant-name", text: row.tenant }),
       el("span", { class: "tenant-cost" }, usd(row.cost), el("small", { text: `${share.toFixed(1)}%` })),
-      el("span", { class: "bar", "aria-hidden": "true" }, el("i", { style: `width:${width.toFixed(2)}%` })),
+      el("span", { class: "bar", "aria-hidden": "true" }, bar),
       el("span", { class: "tenant-meta", text: `${count(row.events, "event")} · ${count(row.llm, "LLM call")} · ${count(row.errors, "error")} · ${int(row.tin)} in / ${int(row.tout)} out${row.cached ? ` / ${int(row.cached)} cached` : ""}` }),
     ));
+  }
+  if (grow.length) {
+    void list.offsetWidth;
+    for (const [bar, width] of grow) bar.style.width = `${width.toFixed(2)}%`;
   }
   $("#tenants-empty").hidden = rows.length > 0;
 
@@ -133,7 +189,10 @@ function render() {
   checkList.replaceChildren();
   for (const item of checks(state.events)) {
     const mark = item.status === "pass" ? "✓" : item.status === "fail" ? "✕" : "i";
-    checkList.append(el("li", { class: item.status },
+    const before = verdicts.get(item.title);
+    verdicts.set(item.title, item.status);
+    const flipped = animating() && before && before !== item.status && item.status !== "info";
+    checkList.append(el("li", { class: `${item.status}${flipped ? " flip" : ""}` },
       el("span", { class: "tick", "aria-hidden": "true", text: mark }),
       el("b", { text: `${item.title}${item.status === "pass" ? " · verified" : item.status === "fail" ? " · failed" : ""}` }),
       el("p", { text: item.text }),
@@ -161,7 +220,8 @@ function render() {
     const toggle = el("button", { class: "raw-btn", type: "button", "aria-expanded": String(open), "aria-label": `Show the raw event for ${event.message || "this span"}`, text: "JSON" });
     toggle.addEventListener("click", () => { open ? state.open.delete(id) : state.open.add(id); render(); });
     const cached = Number(event.cache_read_tokens) ? int(event.cache_read_tokens) : "–";
-    body.append(el("tr", { class: event.is_error ? "is-error" : "" },
+    const landed = animating() && index === state.events.length - 1 ? " enter" : "";
+    body.append(el("tr", { class: `${event.is_error ? "is-error" : ""}${landed}` },
       el("td", { class: "idx", text: String(index + 1) }),
       el("td", { class: "mono", text: event.tenant_id }),
       el("td", { class: "mono", text: event.message || "" }),
@@ -183,16 +243,78 @@ function setMode(mode, detail) {
   chip.className = `chip ${live ? "chip-live" : mode === "error" ? "chip-err" : ""}`;
   chip.textContent = { jsonl: "Live · JSONL exporter", redis: "Live · Redis Streams", memory: "Live · per request", replay: "Recorded run", error: "No backend" }[mode] || "Connecting…";
   $("#replay-banner").hidden = mode !== "replay";
+  $("#replay-actions").hidden = mode !== "replay";
   $("#live-actions").hidden = !live;
   $("#custom-panel").hidden = !live;
   if (detail) $("#store-line").textContent = detail;
 }
 
-/* ---------- data ---------- */
-async function loadEvents() {
-  const data = await getJSON("api/events?limit=2000");
-  state.events = data.events || [];
+/* ---------- playback ---------- */
+// One span crossing the chain: span → tenant → cost → normalizer → exporter.
+function pulse(event) {
+  const pipe = $("#pipe");
+  $("#pipe-now").textContent = `${event.tenant_id} · ${event.message || "span"} · ${usd(event.cost_usd)}${event.is_error ? " · failed, still billed" : ""}`;
+  pipe.classList.toggle("pipe-error", Boolean(event.is_error));
+  pipe.classList.remove("run");
+  void pipe.offsetWidth;
+  pipe.classList.add("run");
+}
+
+function settle() {
+  const { total } = summarize(state.events);
+  const private_ = checks(state.events)[1].status === "pass";
+  const pipe = $("#pipe");
+  pipe.classList.remove("pipe-error");
+  pipe.classList.toggle("has-events", state.events.length > 0);
+  $("#pipe-now").textContent = state.events.length
+    ? `${count(total.events, "span")} exported · ${usd(total.cost)} · ${private_ ? "no prompts or responses" : "prompt fields found"}`
+    : "Waiting for spans";
+}
+
+// Shows events; a newer call (another run, a reset) cancels one still playing.
+async function present(events, { append = false } = {}) {
+  const token = ++play.token;
+  const base = append ? state.events : [];
+  if (!append) widths.clear();
+  if (!MOTION || document.hidden || events.length === 0 || events.length > MAX_PLAYED) {
+    play.active = false;
+    state.events = [...base, ...events];
+    render();
+    settle();
+    return;
+  }
+  play.active = true;
+  state.events = base;
   render();
+  for (const event of events) {
+    pulse(event);
+    await sleep(TRAVEL_MS);
+    if (token !== play.token) return;
+    state.events = [...state.events, event];
+    render();
+    await sleep(STEP_MS - TRAVEL_MS);
+    if (token !== play.token) return;
+  }
+  play.active = false;
+  settle();
+}
+
+/* ---------- data ---------- */
+// animated: new events play in; appended ones play on top of what is on screen.
+async function loadEvents(animated = false) {
+  const data = await getJSON("api/events?limit=2000");
+  const events = data.events || [];
+  if (!animated) {
+    state.events = events;
+    render();
+    settle();
+    return;
+  }
+  const known = new Set(state.events.map((event) => event.id));
+  const fresh = events.filter((event) => !known.has(event.id));
+  const appended = events.every((event) => event.id) && fresh.length > 0 && fresh.length < events.length
+    && events.slice(0, events.length - fresh.length).every((event) => known.has(event.id));
+  await present(appended ? fresh : events, { append: appended });
 }
 
 // keep(result) applies a per-request response; stores that persist are re-read instead.
@@ -203,10 +325,9 @@ async function act(button, work, done, keep) {
   try {
     const result = await work();
     if (state.perRequest) {
-      keep(result);
-      render();
+      await keep(result);
     } else {
-      await loadEvents();
+      await loadEvents(true);
     }
     announce(done);
   } catch (error) {
@@ -226,26 +347,29 @@ async function loadModels() {
 }
 
 async function start() {
-  try {
-    const health = await getJSON("api/health");
-    state.perRequest = Boolean(health.per_request);
-    if (state.perRequest) {
-      setMode(health.exporter, "Each request runs LumenAI on the server and returns the events its exporter received. Nothing is stored there; your events stay in this tab.");
-      await loadModels();
-      await act(null, runScenario, "Scenario run on the server: 3 tenants, 11 events.", keepScenario);
-    } else {
-      setMode(health.exporter, `Events are read back from ${health.store} after LumenAI exports them.`);
-      await Promise.all([loadModels(), loadEvents()]);
+  if (!RECORDING_ONLY) {
+    try {
+      const health = await getJSON("api/health");
+      state.perRequest = Boolean(health.per_request);
+      if (state.perRequest) {
+        setMode(health.exporter, "Each request runs LumenAI on the server and returns the events its exporter received. Nothing is stored there; your events stay in this tab.");
+        await loadModels();
+        await act(null, runScenario, "Scenario run on the server: 3 tenants, 11 events.", keepScenario);
+      } else {
+        setMode(health.exporter, `Events are read back from ${health.store} after LumenAI exports them.`);
+        await loadModels();
+        await loadEvents(true);
+      }
+      return;
+    } catch {
+      // no backend: fall through to the recorded run
     }
-    return;
-  } catch {
-    // no backend: fall through to the recorded run
   }
   try {
     const recording = await getJSON("static/recorded-events.json");
-    state.events = recording.events || [];
+    state.recording = recording.events || [];
     setMode("replay", `Recorded with ${recording.recorded_with} from ${recording.scenario}.`);
-    render();
+    await present(state.recording);
   } catch (error) {
     setMode("error", "No backend and no recording found. Start it with: uvicorn main:app --app-dir examples/local-observability-demo");
     render();
@@ -253,12 +377,19 @@ async function start() {
 }
 
 const runScenario = () => getJSON("api/scenario", { method: "POST" });
-const keepScenario = (result) => { state.events = result.produced || []; };
+const keepScenario = (result) => present(result.produced || []);
 
 $("#run-scenario").addEventListener("click", (event) =>
   act(event.currentTarget, runScenario, "Scenario replayed: 3 tenants, 11 events.", keepScenario));
 $("#reset").addEventListener("click", (event) =>
-  act(event.currentTarget, () => getJSON("api/reset", { method: "POST" }), "Events cleared.", () => { state.events = []; }));
+  act(event.currentTarget, () => getJSON("api/reset", { method: "POST" }), "Events cleared.", () => present([])));
+$("#replay-run").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  await present(state.recording || []);
+  button.disabled = false;
+  announce("Recorded run replayed: 3 tenants, 11 events.");
+});
 $("#simulate-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
@@ -272,7 +403,7 @@ $("#simulate-form").addEventListener("submit", (event) => {
   };
   const button = event.currentTarget.querySelector("button[type=submit]");
   act(button, () => getJSON("api/simulate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }),
-    `Span sent for ${payload.tenant_id}.`, (result) => { state.events = [...state.events, ...(result.produced || [])]; });
+    `Span sent for ${payload.tenant_id}.`, (result) => present(result.produced || [], { append: true }));
 });
 
 start();

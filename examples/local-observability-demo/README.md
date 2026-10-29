@@ -80,7 +80,10 @@ uvicorn vercel_app:app --app-dir examples/local-observability-demo
 
 When the page is served without the backend, it replays `static/recorded-events.json`, a real run
 of the scenario recorded by the SDK. To host it on a static site, publish `static/index.html` as
-`index.html` next to the `static/` folder. To regenerate the recording after changing the pricing or
+`index.html` next to the `static/` folder, and add `data-recording-only` to its `<html>` tag so
+the page goes straight to the recording instead of probing `api/health` (which a static host
+answers with a 404). The run plays in one event at a time; **Replay the recorded run** plays it
+again. To regenerate the recording after changing the pricing or
 the scenario, run:
 
 ```bash
